@@ -117,11 +117,6 @@ BEGIN
 END;
 GO
 
-
--- =============================================
--- 6. KIỂM TRA BÀN ĐÃ ĐƯỢC ĐẶT
--- =============================================
-
 CREATE OR ALTER PROCEDURE sp_KiemTraDatBan
     @MaBan VARCHAR(10),
     @NgayDat DATE,
@@ -157,10 +152,6 @@ BEGIN
 END;
 GO
 
-
--- =============================================
--- 7. TẠO ĐẶT BÀN
--- =============================================
 
 CREATE OR ALTER PROCEDURE sp_TaoDatBan
     @MaDatBan VARCHAR(10),
@@ -340,10 +331,6 @@ END;
 GO
 
 
--- =============================================
--- 9. TÍNH TỔNG TIỀN HÓA ĐƠN
--- =============================================
-
 CREATE OR ALTER PROCEDURE sp_TinhTongHoaDon
     @MaHD VARCHAR(10)
 AS
@@ -378,11 +365,6 @@ BEGIN
     WHERE MaHD = @MaHD;
 END;
 GO
-
-
--- =============================================
--- 10. THANH TOÁN HÓA ĐƠN
--- =============================================
 
 CREATE OR ALTER PROCEDURE sp_ThanhToanHoaDon
     @MaHD VARCHAR(10),
