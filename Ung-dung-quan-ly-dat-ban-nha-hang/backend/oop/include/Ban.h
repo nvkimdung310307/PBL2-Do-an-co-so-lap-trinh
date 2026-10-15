@@ -1,5 +1,5 @@
-#ifndef Ban_H
-#define Ban_H
+#ifndef BAN_H
+#define BAN_H
 
 #include <iostream>
 #include <string>
