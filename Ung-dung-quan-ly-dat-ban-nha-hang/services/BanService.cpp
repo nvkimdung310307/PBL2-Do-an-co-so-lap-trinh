@@ -194,3 +194,39 @@ const vector<Ban>& BanService::getDanhSachBan() const
 {
     return danhSachBan;
 }
+// Tim ban trong theo so khach va khu vuc
+void BanService::timBanTheoKhuVuc(
+    int soChoToiThieu,
+    const string& maKhuVuc) const
+{
+    if (soChoToiThieu <= 0)
+    {
+        cout << "So khach phai lon hon 0!\n";
+        return;
+    }
+
+    bool timThay = false;
+
+    for (size_t i = 0; i < danhSachBan.size(); i++)
+    {
+        string trangThai = danhSachBan[i].getTrangThai();
+
+        if ((trangThai == "Trong" || trangThai == "Trống") &&
+            danhSachBan[i].getSoCho() >= soChoToiThieu &&
+            danhSachBan[i].getMaKhuVuc() == maKhuVuc)
+        {
+            cout << "Ma ban: " << danhSachBan[i].getMaBan()
+                 << " | Ten ban: " << danhSachBan[i].getTenBan()
+                 << " | So cho: " << danhSachBan[i].getSoCho()
+                 << " | Khu vuc: " << danhSachBan[i].getMaKhuVuc()
+                 << '\n';
+
+            timThay = true;
+        }
+    }
+
+    if (!timThay)
+    {
+        cout << "Khong co ban trong phu hop voi so khach va khu vuc!\n";
+    }
+}
