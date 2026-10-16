@@ -30,6 +30,11 @@ public:
 
     // Huy dat ban
     bool huyDatBan(const string& maDatBan);
+    // Xac nhan khach den
+    bool xacNhanKhachDen(const string& maDatBan);
+
+    // Danh dau khach khong den
+    bool danhDauKhongDen(const string& maDatBan);
 
     // Xoa dat ban
     bool xoaDatBan(const string& maDatBan);
