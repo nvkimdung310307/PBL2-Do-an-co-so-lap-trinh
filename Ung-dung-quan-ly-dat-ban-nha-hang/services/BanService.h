@@ -31,6 +31,7 @@ public:
 
     // Tim ban trong theo so cho
     void timBanTrong(int soChoToiThieu) const;
+    void timBanTheoKhuVuc(int soChoToiThieu, const string& maKhuVuc) const;
 
     // Cap nhat trang thai ban
     bool capNhatTrangThai(
