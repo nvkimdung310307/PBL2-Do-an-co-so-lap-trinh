@@ -287,3 +287,60 @@ DatBanService::getDanhSachDatBan() const
 {
     return danhSachDatBan;
 }
+// Xac nhan khach da den nha hang
+bool DatBanService::xacNhanKhachDen(const string& maDatBan)
+{
+    for (size_t i = 0; i < danhSachDatBan.size(); i++)
+    {
+        if (danhSachDatBan[i].getMaDatBan() == maDatBan)
+        {
+            string trangThai = danhSachDatBan[i].getTrangThai();
+
+            if (trangThai == "Da huy" ||
+                trangThai == "Huy" ||
+                trangThai == "KhongDen" ||
+                trangThai == "DaDen")
+            {
+                cout << "Khong the xac nhan khach den voi trang thai nay!\n";
+                return false;
+            }
+
+            danhSachDatBan[i].setTrangThai("DaDen");
+
+            cout << "Da xac nhan khach den!\n";
+            return true;
+        }
+    }
+
+    cout << "Khong tim thay lich dat ban!\n";
+    return false;
+}
+
+// Danh dau khach khong den
+bool DatBanService::danhDauKhongDen(const string& maDatBan)
+{
+    for (size_t i = 0; i < danhSachDatBan.size(); i++)
+    {
+        if (danhSachDatBan[i].getMaDatBan() == maDatBan)
+        {
+            string trangThai = danhSachDatBan[i].getTrangThai();
+
+            if (trangThai == "Da huy" ||
+                trangThai == "Huy" ||
+                trangThai == "DaDen" ||
+                trangThai == "KhongDen")
+            {
+                cout << "Khong the cap nhat trang thai nay!\n";
+                return false;
+            }
+
+            danhSachDatBan[i].setTrangThai("KhongDen");
+
+            cout << "Da cap nhat: khach khong den!\n";
+            return true;
+        }
+    }
+
+    cout << "Khong tim thay lich dat ban!\n";
+    return false;
+}
