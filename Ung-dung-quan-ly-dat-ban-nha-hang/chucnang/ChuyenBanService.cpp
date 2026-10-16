@@ -61,12 +61,48 @@ bool ChuyenBanService::chuyenBan(
         return false;
     }
 
-    cout << "Da kiem tra du dieu kien chuyen ban.\n";
-    cout << "Ma dat ban: " << maDatBan << '\n';
-    cout << "Ban cu: " << maBanCu << '\n';
-    cout << "Ban moi: " << maBanMoi << '\n';
+// Tao thong tin dat ban moi, chi thay ma ban
+DatBan datBanMoi(
+    datBan->getMaDatBan(),
+    datBan->getMaKH(),
+    maBanMoi,
+    datBan->getMaNV(),
+    datBan->getNgayDat(),
+    datBan->getGioDat(),
+    datBan->getSoNguoi(),
+    datBan->getTrangThai(),
+    datBan->getGhiChu()
+);
 
-    cout << "Chuc nang can cap nhat lich dat va trang thai ban.\n";
-
+// Cap nhat lich dat ban truoc
+if (!datBanService.suaDatBan(maDatBan, datBanMoi))
+{
+    cout << "Khong the cap nhat lich dat ban!\n";
     return false;
+}
+
+// Cap nhat trang thai ban cu
+if (!banService.capNhatTrangThai(maBanCu, "Trong"))
+{
+    // Khoi phuc lich dat ve ban cu neu cap nhat trang thai that bai
+    datBanService.suaDatBan(maDatBan, *datBan);
+    cout << "Khong the cap nhat trang thai ban cu!\n";
+    return false;
+}
+
+// Cap nhat trang thai ban moi
+if (!banService.capNhatTrangThai(maBanMoi, "Dang su dung"))
+{
+    // Khoi phuc du lieu neu cap nhat ban moi that bai
+    banService.capNhatTrangThai(maBanCu, "Dang su dung");
+    datBanService.suaDatBan(maDatBan, *datBan);
+    cout << "Khong the cap nhat trang thai ban moi!\n";
+    return false;
+}
+
+cout << "Chuyen ban thanh cong!\n";
+cout << "Ban cu: " << maBanCu << " -> Trong\n";
+cout << "Ban moi: " << maBanMoi << " -> Dang su dung\n";
+
+return true;
 }
