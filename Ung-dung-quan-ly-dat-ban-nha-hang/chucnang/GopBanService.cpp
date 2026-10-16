@@ -86,13 +86,45 @@ bool GopBanService::gopBan(
         }
     }
 
-    cout << "Da kiem tra danh sach ban can gop.\n";
-    cout << "Ban dich: " << maBanDich << '\n';
+// Kiem tra tat ca ban can gop dang duoc su dung
+for (const string& maBan : danhSachMaBan)
+{
+    const Ban* ban = banService.timBan(maBan);
 
-    // Chua cap nhat trang thai vi can thong nhat quy tac
-    // trang thai va ham capNhatTrangThai trong BanService.
-    cout << "Can ket noi buoc cap nhat trang thai trong BanService.\n";
+    if (ban == nullptr)
+    {
+        cout << "Khong tim thay ban: " << maBan << '\n';
+        return false;
+    }
 
-    return false;
+    string trangThai = ban->getTrangThai();
+
+    if (trangThai != "Dang su dung" &&
+        trangThai != "Đang sử dụng")
+    {
+        cout << "Ban " << maBan
+             << " chua duoc su dung, khong the gop!\n";
+        return false;
+    }
+}
+
+// Giu ban dich, cac ban con lai chuyen ve trong
+for (const string& maBan : danhSachMaBan)
+{
+    if (maBan != maBanDich)
+    {
+        if (!banService.capNhatTrangThai(maBan, "Trong"))
+        {
+            cout << "Gop ban that bai khi cap nhat "
+                 << maBan << "!\n";
+            return false;
+        }
+    }
+}
+
+cout << "Gop ban thanh cong!\n";
+cout << "Ban dich duoc giu lai: " << maBanDich << '\n';
+
+return true;
 }
 
