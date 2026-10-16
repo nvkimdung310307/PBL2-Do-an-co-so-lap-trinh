@@ -1,6 +1,7 @@
 
 #include "DatBanService.h"
 #include <iostream>
+#include <sstream>
 
 using namespace std;
 
@@ -21,22 +22,44 @@ bool DatBanService::trungLich(
     const DatBan& datBan,
     const string& maDatBanBoQua) const
 {
-    for (size_t i = 0; i < danhSachDatBan.size(); i++)
-    {
-        const DatBan& hienTai = danhSachDatBan[i];
+    int gioMoi, phutMoi;
+    char dauHaiCham;
 
-        // Bo qua chinh lich dang sua
+    string gioDatMoi = datBan.getGioDat();
+    stringstream ss(gioDatMoi);
+    ss >> gioMoi >> dauHaiCham >> phutMoi;
+
+    if (gioMoi < 0 || gioMoi > 23 ||
+        phutMoi < 0 || phutMoi > 59 ||
+        dauHaiCham != ':')
+        return true;
+
+    int batDauMoi = gioMoi * 60 + phutMoi;
+    int ketThucMoi = batDauMoi + 120;
+
+    for (const DatBan& hienTai : danhSachDatBan)
+    {
         if (hienTai.getMaDatBan() == maDatBanBoQua)
             continue;
 
-        // Khong tinh lich da huy
         if (daHuy(hienTai.getTrangThai()))
             continue;
 
-        // Cung ban, cung ngay, cung gio
-        if (hienTai.getMaBan() == datBan.getMaBan()
-            && hienTai.getNgayDat() == datBan.getNgayDat()
-            && hienTai.getGioDat() == datBan.getGioDat())
+        if (hienTai.getMaBan() != datBan.getMaBan() ||
+            hienTai.getNgayDat() != datBan.getNgayDat())
+            continue;
+
+        int gioCu, phutCu;
+        string gioDatCu = hienTai.getGioDat();
+
+        stringstream ssCu(gioDatCu);
+        ssCu >> gioCu >> dauHaiCham >> phutCu;
+
+        int batDauCu = gioCu * 60 + phutCu;
+        int ketThucCu = batDauCu + 120;
+
+        if (batDauMoi < ketThucCu &&
+            batDauCu < ketThucMoi)
         {
             return true;
         }
