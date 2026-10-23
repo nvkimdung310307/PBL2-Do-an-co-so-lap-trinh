@@ -51,26 +51,38 @@
 
 static const char *STYLE = R"(
 * { font-family: 'Segoe UI'; }
-QLabel { color: #304638; }
-QMainWindow, QWidget#root { background: #F5F0E4; color: #293B32; }
-QFrame#sidebar { background: #254C3A; border: 1px solid #254C3A; border-radius: 18px; }
-QLabel#brand { color: #F4F7EC; font-size: 21px; font-weight: 700; }
-QLabel#subbrand { color: #D0E2D2; font-size: 11px; }
-QPushButton#nav { text-align: left; padding: 12px 15px; border: 0; border-radius: 12px; color: #E4EFE4; font-size: 14px; background: transparent; }
-QPushButton#nav:hover, QPushButton#nav[active="true"] { background: #4B8062; color: #FFFFFF; font-weight: 600; }
+QLabel { color: #000000; }
+QMainWindow, QWidget#root { background: #F5F0E4; color: #000000; }
+QFrame#sidebar { background: #B9D3BA; border: 1px solid #A8C8AA; border-radius: 18px; }
+QLabel#brand { color: #000000; font-size: 21px; font-weight: 700; }
+QLabel#subbrand { color: #000000; font-size: 11px; }
+QPushButton#nav { text-align: left; padding: 12px 15px; border: 0; border-radius: 12px; color: #000000; font-size: 14px; background: transparent; }
+QPushButton#nav:hover, QPushButton#nav[active="true"] { background: #91BA96; color: #17251B; font-weight: 600; }
 QFrame#panel, QFrame#stat { background: #FFFFFF; border: 1px solid #E8EEE5; border-radius: 18px; }
-QLabel#pageTitle { font-size: 25px; font-weight: 700; color: #2D4938; }
-QLabel#muted { color: #809187; font-size: 12px; }
-QLabel#statTitle { color: #7A8B7E; font-size: 12px; }
-QLabel#statValue { color: #2D513B; font-size: 25px; font-weight: 700; }
-QPushButton#primary { color: white; background: #79A987; border: none; border-radius: 11px; padding: 11px 18px; font-weight: 600; }
+QLabel#pageTitle { font-size: 25px; font-weight: 700; color: #000000; }
+QLabel#muted { color: #000000; font-size: 12px; }
+QLabel#statTitle { color: #000000; font-size: 12px; }
+QLabel#statValue { color: #000000; font-size: 25px; font-weight: 700; }
+QPushButton#primary { color: #000000; background: #79A987; border: none; border-radius: 11px; padding: 11px 18px; font-weight: 600; }
 QPushButton#primary:hover { background: #659875; }
-QPushButton#soft { color: #416A4F; background: #EDF5ED; border: 1px solid #DCEADD; border-radius: 10px; padding: 9px 14px; }
-QLineEdit, QComboBox, QDateEdit, QTimeEdit, QTextEdit, QSpinBox, QDoubleSpinBox { background: #FBFCF9; border: 1px solid #DDE7DC; border-radius: 10px; padding: 9px; color: #304638; selection-background-color: #BFDCC5; }
-QTableWidget { background: white; border: 0; gridline-color: #EDF1EB; border-radius: 12px; selection-background-color: #E7F3E8; selection-color: #294C35; }
-QHeaderView::section { background: #F0F6EF; color: #597260; border: 0; padding: 10px; font-weight: 600; }
-QTableWidget::item { padding: 7px; }
-QLabel#pill { background: #E5F3E7; color: #3D8050; border-radius: 9px; padding: 5px 9px; }
+QPushButton#soft { color: #000000; background: #EDF5ED; border: 1px solid #DCEADD; border-radius: 10px; padding: 9px 14px; }
+QLineEdit, QComboBox, QDateEdit, QTimeEdit, QTextEdit, QSpinBox, QDoubleSpinBox { background: #FBFCF9; border: 1px solid #DDE7DC; border-radius: 10px; padding: 9px; color: #17251B; selection-background-color: #CDE8D0; selection-color: #17251B; }
+QComboBox QAbstractItemView { background: #FFFFFF; color: #17251B; selection-background-color: #DDEFE0; selection-color: #17251B; border: 1px solid #D4E4D5; outline: 0; padding: 4px; }
+QComboBox QAbstractItemView::item { min-height: 28px; padding: 6px 8px; background: #FFFFFF; color: #17251B; }
+QComboBox QAbstractItemView::item:hover { background: #EDF7ED; color: #17251B; }
+QComboBox QAbstractItemView::item:selected { background: #DDEFE0; color: #17251B; }
+QComboBox::drop-down, QDateEdit::drop-down, QTimeEdit::drop-down { background: #EDF5ED; border: 0; border-left: 1px solid #DDE7DC; border-top-right-radius: 9px; border-bottom-right-radius: 9px; width: 26px; }
+QCalendarWidget QWidget { background: #FFFFFF; color: #17251B; alternate-background-color: #F3F8F2; }
+QCalendarWidget QToolButton { background: #E4F1E3; color: #17251B; border: 0; padding: 6px; }
+QCalendarWidget QMenu { background: #FFFFFF; color: #17251B; }
+QScrollArea { background: #FFFFFF; border: 0; }
+QScrollArea QWidget#qt_scrollarea_viewport { background: #FFFFFF; }
+QToolTip { background: #F8FCF7; color: #17251B; border: 1px solid #D4E4D5; }
+QTableWidget { background: #FFFFFF; alternate-background-color: #F5FAF4; border: 1px solid #E3EDE0; gridline-color: #E3EDE0; border-radius: 12px; color: #000000; selection-background-color: #D9EED9; selection-color: #000000; }
+QHeaderView::section { background: #EAF4E8; color: #000000; border: 0; border-bottom: 1px solid #DCE9D9; padding: 11px; font-weight: 600; }
+QTableWidget::item { padding: 8px; color: #000000; background-color: transparent; }
+QTableWidget::item:hover { background: #F0F8EF; }
+QLabel#pill { background: #E5F3E7; color: #000000; border-radius: 9px; padding: 5px 9px; }
 )";
 
 static QLabel *label(const QString &text, const QString &id = QString()) {
@@ -96,10 +108,10 @@ public:
         sl->addSpacing(20);
         const QStringList names = {"⌂   Tổng quan", "▦   Đặt bàn", "▤   Quản lý bàn", "♨   Món ăn", "♧   Khách hàng", "♙   Nhân viên & tài khoản", "▣   Hóa đơn", "▥   Thống kê", "⚙   Tài khoản & nhà hàng", "▣   POS NHÂN VIÊN", "▦   Thiết kế sơ đồ bàn"};
         for (int i=0;i<names.size();++i) { auto *b=new QPushButton(names[i]); b->setObjectName("nav"); b->setProperty("active", i==0); b->setCursor(Qt::PointingHandCursor); sl->addWidget(b); navButtons.append(b); connect(b,&QPushButton::clicked,this,[this,i]{showPage(i);}); if(userRole!="Admin" && (i==5 || i==7 || i==8 || i==10)) b->hide(); if(userRole=="Admin" && i==9) b->hide(); }
-        sl->addStretch(); auto *welcome=panel(); welcome->setStyleSheet("QFrame#panel{background:#315B46;border:0;color:#F4F7EC;} QLabel{color:#F4F7EC;}"); auto *wl=new QVBoxLayout(welcome); wl->addWidget(label("❧", "brand")); wl->addWidget(label("Không gian xanh\nTrải nghiệm tuyệt vời")); sl->addWidget(welcome);
+        sl->addStretch(); auto *welcome=panel(); welcome->setStyleSheet("QFrame#panel{background:#AFCDAF;border:1px solid #9FBEA0;color:#17251B;} QLabel{color:#17251B;}"); auto *wl=new QVBoxLayout(welcome); wl->addWidget(label("❧", "brand")); wl->addWidget(label("Không gian xanh\nTrải nghiệm tuyệt vời")); sl->addWidget(welcome);
         outer->addWidget(side);
         auto *right = new QWidget; auto *rv = new QVBoxLayout(right); rv->setContentsMargins(0,0,0,0); rv->setSpacing(16);
-        auto *top = new QHBoxLayout; auto *search=new QLineEdit; search->setPlaceholderText("⌕   Tìm kiếm món ăn, bàn, khách hàng..."); search->setMinimumHeight(42); top->addWidget(search,1); auto *profile=new QLabel("●   "+user+"   ·   "+(role=="Admin"?QString("Quản trị viên"):QString("Nhân viên"))); profile->setStyleSheet("background:#EAF2E8;border-radius:12px;padding:12px;color:#45664D;font-weight:600;"); top->addWidget(profile); auto *logoutButton=new QPushButton("Đăng xuất"); logoutButton->setObjectName("soft"); logoutButton->setCursor(Qt::PointingHandCursor); top->addWidget(logoutButton); connect(logoutButton,&QPushButton::clicked,this,[this]{ if(QMessageBox::question(this,"Đăng xuất","Bạn có chắc chắn muốn đăng xuất khỏi tài khoản này?",QMessageBox::Yes|QMessageBox::No,QMessageBox::No)==QMessageBox::Yes){ hide(); if(onLogout) onLogout(); } }); rv->addLayout(top);
+        auto *top = new QHBoxLayout; auto *search=new QLineEdit; search->setPlaceholderText("⌕   Tìm kiếm món ăn, bàn, khách hàng..."); search->setMinimumHeight(42); top->addWidget(search,1); auto *profile=new QLabel("●   "+user+"   ·   "+(role=="Admin"?QString("Quản trị viên"):QString("Nhân viên"))); profile->setStyleSheet("background:#EAF2E8;border-radius:12px;padding:12px;color:#000000;font-weight:600;"); top->addWidget(profile); auto *logoutButton=new QPushButton("Đăng xuất"); logoutButton->setObjectName("soft"); logoutButton->setCursor(Qt::PointingHandCursor); top->addWidget(logoutButton); connect(logoutButton,&QPushButton::clicked,this,[this]{ if(QMessageBox::question(this,"Đăng xuất","Bạn có chắc chắn muốn đăng xuất khỏi tài khoản này?",QMessageBox::Yes|QMessageBox::No,QMessageBox::No)==QMessageBox::Yes){ hide(); if(onLogout) onLogout(); } }); rv->addLayout(top);
         pages = new QStackedWidget;
         pages->addWidget(makeDashboard());
         pages->addWidget(makeBookingPage());
@@ -144,7 +156,7 @@ private:
         for(int i=0;i<4;++i){
             auto*f=new QFrame; f->setObjectName("stat"); shadow(f); auto*row=new QHBoxLayout(f);
             auto*ic=label(icons[i]); ic->setAlignment(Qt::AlignCenter); ic->setFixedSize(58,58);
-            ic->setStyleSheet(QString("background:%1;border-radius:29px;color:#568564;font-size:23px;").arg(colors[i]));
+            ic->setStyleSheet(QString("background:%1;border-radius:29px;color:#000000;font-size:23px;").arg(colors[i]));
             auto*col=new QVBoxLayout; col->addWidget(label(titles[i],"statTitle")); col->addWidget(label(vals[i],"statValue")); col->addWidget(label(details[i],"muted"));
             row->addWidget(ic); row->addLayout(col,1); stats->addWidget(f,0,i);
         }
@@ -154,7 +166,27 @@ private:
         auto *left=new QWidget; auto *leftCol=new QVBoxLayout(left); leftCol->setContentsMargins(0,0,0,0); leftCol->setSpacing(12);
         auto *map=panel(); shadow(map); auto*mv=new QVBoxLayout(map);
         auto*mh=new QHBoxLayout; mh->addWidget(label("▦  Sơ đồ bàn", "pageTitle")); mh->addStretch();
-        mh->addWidget(label("● Trống   ● Đã đặt   ● Đang sử dụng   ● Bảo trì", "muted")); mv->addLayout(mh);
+        // Chú giải trạng thái dùng các chấm màu pastel tương ứng với màu bàn bên dưới.
+        const QList<QPair<QString, QString>> statusLegend = {
+            {QStringLiteral("Trống"), QStringLiteral("#BFE2C5")},
+            {QStringLiteral("Đã đặt"), QStringLiteral("#F8E3AF")},
+            {QStringLiteral("Đang sử dụng"), QStringLiteral("#F3C8C7")},
+            {QStringLiteral("Bảo trì"), QStringLiteral("#D9D9D6")}
+        };
+        for (const auto &item : statusLegend) {
+            auto *legendItem = new QWidget;
+            auto *legendLayout = new QHBoxLayout(legendItem);
+            legendLayout->setContentsMargins(0, 0, 0, 0);
+            legendLayout->setSpacing(4);
+            auto *dot = new QLabel(QStringLiteral("●"));
+            dot->setStyleSheet(QString("color:%1;font-size:14px;background:transparent;").arg(item.second));
+            auto *caption = new QLabel(item.first);
+            caption->setStyleSheet("color:#202820;background:transparent;font-size:12px;");
+            legendLayout->addWidget(dot);
+            legendLayout->addWidget(caption);
+            mh->addWidget(legendItem);
+        }
+        mv->addLayout(mh);
         auto *floors=new QHBoxLayout;
         auto *floor=new QGridLayout; floor->setSpacing(10);
         QSqlQuery areaQuery(DatabaseManager::database());
@@ -185,7 +217,7 @@ private:
                     auto *tb=new QPushButton(name+"\n"+QString::number(seats)+" chỗ");
                     tb->setToolTip("Mã: "+id+"\nTrạng thái: "+status+"\nKhu vực: "+areaName);
                     tb->setMinimumHeight(58);
-                    tb->setStyleSheet(QString("QPushButton{background:%1;border:1px solid #B8D6BD;border-radius:12px;color:#294C35;font-weight:600;} QPushButton:hover{border:2px solid #78A985;}").arg(bg));
+                    tb->setStyleSheet(QString("QPushButton{background:%1;border:1px solid #B8D6BD;border-radius:12px;color:#000000;font-weight:600;} QPushButton:hover{border:2px solid #78A985;}").arg(bg));
                     connect(tb,&QPushButton::clicked,this,[this,id,name,status]{QMessageBox::information(this,"Thông tin bàn",name+" ("+id+")\nTrạng thái: "+status);});
                     int savedCol=tableQuery.value(4).toInt(), savedRow=tableQuery.value(5).toInt();
                     if(savedCol>=0 && savedRow>=0) {
@@ -219,7 +251,7 @@ private:
         QSqlQuery foodQuery(DatabaseManager::database());
         if(DatabaseManager::isOpen() && foodQuery.exec("SELECT TOP 5 TenMon, DonGia FROM dbo.MonAn WHERE TrangThai=N'Đang bán' ORDER BY TenMon")) {
             int count=0;
-            while(foodQuery.next()) { auto*fc=new QFrame;fc->setStyleSheet("QFrame{background:#F7FAF5;border:1px solid #E7EEE4;border-radius:13px;}");auto*fl=new QVBoxLayout(fc);auto*emoji=label("♨");emoji->setAlignment(Qt::AlignCenter);emoji->setStyleSheet("font-size:25px;background:#EAF3E7;border-radius:10px;padding:6px;");fl->addWidget(emoji);fl->addWidget(label(foodQuery.value(0).toString()));auto*price=label(QLocale(QLocale::Vietnamese).toString(foodQuery.value(1).toDouble(),'f',0)+"đ");price->setStyleSheet("color:#B56C65;font-weight:700;");fl->addWidget(price);foods->addWidget(fc);++count;}
+            while(foodQuery.next()) { auto*fc=new QFrame;fc->setStyleSheet("QFrame{background:#F7FAF5;border:1px solid #E7EEE4;border-radius:13px;}");auto*fl=new QVBoxLayout(fc);auto*emoji=label("♨");emoji->setAlignment(Qt::AlignCenter);emoji->setStyleSheet("font-size:25px;background:#EAF3E7;border-radius:10px;padding:6px;");fl->addWidget(emoji);fl->addWidget(label(foodQuery.value(0).toString()));auto*price=label(QLocale(QLocale::Vietnamese).toString(foodQuery.value(1).toDouble(),'f',0)+"đ");price->setStyleSheet("color:#000000;font-weight:700;");fl->addWidget(price);foods->addWidget(fc);++count;}
             if(count==0) foods->addWidget(label("Chưa có món đang bán. Hãy thêm món ăn trong mục Món ăn.","muted"));
         } else foods->addWidget(label("Chưa có dữ liệu món ăn hoặc chưa kết nối SQL Server.","muted"));
         foodV->addLayout(foods); leftCol->addWidget(foodPanel,1); content->addWidget(left,7);
@@ -240,7 +272,7 @@ private:
         QSqlQuery recentCustomers(DatabaseManager::database());
         if(DatabaseManager::isOpen() && recentCustomers.exec("SELECT TOP 3 kh.HoTen, kh.SoDienThoai, db.MaBan, db.SoNguoi, db.GioDat FROM dbo.DatBan db JOIN dbo.KhachHang kh ON kh.MaKH=db.MaKH ORDER BY db.NgayDat DESC, db.GioDat DESC")) {
             int idx=0;
-            while(recentCustomers.next()) {QString n=recentCustomers.value(0).toString(); auto*r=new QHBoxLayout;auto*initial=label(n.isEmpty()?"?":QString(n.at(0)));initial->setAlignment(Qt::AlignCenter);initial->setFixedSize(34,34);initial->setStyleSheet("background:#DCEBE0;border-radius:17px;color:#456A50;font-weight:700;");auto*info=new QVBoxLayout;info->addWidget(label(n));info->addWidget(label(recentCustomers.value(1).toString(),"muted"));auto*booking=label(recentCustomers.value(2).toString()+" · "+recentCustomers.value(3).toString()+" người\n"+recentCustomers.value(4).toString().left(5));booking->setStyleSheet("background:#EEF6ED;color:#456A50;border-radius:8px;padding:5px;");r->addWidget(initial);r->addLayout(info,1);r->addWidget(booking);cv->addLayout(r);++idx;}
+            while(recentCustomers.next()) {QString n=recentCustomers.value(0).toString(); auto*r=new QHBoxLayout;auto*initial=label(n.isEmpty()?"?":QString(n.at(0)));initial->setAlignment(Qt::AlignCenter);initial->setFixedSize(34,34);initial->setStyleSheet("background:#DCEBE0;border-radius:17px;color:#000000;font-weight:700;");auto*info=new QVBoxLayout;info->addWidget(label(n));info->addWidget(label(recentCustomers.value(1).toString(),"muted"));auto*booking=label(recentCustomers.value(2).toString()+" · "+recentCustomers.value(3).toString()+" người\n"+recentCustomers.value(4).toString().left(5));booking->setStyleSheet("background:#EEF6ED;color:#000000;border-radius:8px;padding:5px;");r->addWidget(initial);r->addLayout(info,1);r->addWidget(booking);cv->addLayout(r);++idx;}
             if(idx==0) cv->addWidget(label("Chưa có lượt đặt bàn. Dữ liệu sẽ xuất hiện sau khi phát sinh đặt bàn.","muted"));
         } else cv->addWidget(label("Chưa có dữ liệu khách hàng hoặc chưa kết nối SQL Server.","muted"));
         rightV->addWidget(customers);
@@ -368,8 +400,8 @@ private:
 
         auto *previewPanel = panel(); auto *previewLayout = new QVBoxLayout(previewPanel);
         previewLayout->addWidget(label("Xem trước sơ đồ", "sectionTitle"));
-        auto *previewScroll = new QScrollArea; previewScroll->setWidgetResizable(true); previewScroll->setFrameShape(QFrame::NoFrame);
-        auto *preview = new QWidget; auto *previewGrid = new QGridLayout(preview); previewGrid->setSpacing(10); previewGrid->setContentsMargins(6,6,6,6); previewScroll->setWidget(preview); previewLayout->addWidget(previewScroll,1);
+        auto *previewScroll = new QScrollArea; previewScroll->setWidgetResizable(true); previewScroll->setFrameShape(QFrame::NoFrame); previewScroll->setStyleSheet("QScrollArea{background:#F8FBF7;border:0;} QWidget#qt_scrollarea_viewport{background:#F8FBF7;}");
+        auto *preview = new QWidget; preview->setStyleSheet("background:#F8FBF7;color:#17251B;"); preview->setAutoFillBackground(true); auto *previewGrid = new QGridLayout(preview); previewGrid->setSpacing(10); previewGrid->setContentsMargins(6,6,6,6); previewScroll->setWidget(preview); previewLayout->addWidget(previewScroll,1);
         previewLayout->addWidget(label("Chọn một bàn ở danh sách, chỉnh Cột/Hàng rồi bấm Lưu vị trí bàn.","muted")); body->addWidget(previewPanel,2); root->addLayout(body,1);
 
         auto reloadAreas = [this,areaBox](){QString current=areaBox->currentData().toString(); areaBox->clear(); QSqlQuery q(DatabaseManager::database()); if(q.exec("SELECT MaKhuVuc,TenKhuVuc FROM dbo.KhuVuc ORDER BY TenKhuVuc")) while(q.next()) areaBox->addItem(q.value(1).toString(),q.value(0).toString()); int i=areaBox->findData(current); if(i>=0) areaBox->setCurrentIndex(i);};
@@ -378,7 +410,7 @@ private:
             table->setRowCount(0); if(!DatabaseManager::isOpen()||areaBox->currentData().toString().isEmpty()) return;
             QSqlQuery q(DatabaseManager::database()); q.prepare("SELECT b.MaBan,b.TenBan,b.SoCho,ISNULL(p.Cot,0),ISNULL(p.Hang,0),b.TrangThai FROM dbo.Ban b LEFT JOIN dbo.BoTriBan p ON p.MaBan=b.MaBan WHERE b.MaKhuVuc=? ORDER BY ISNULL(p.ThuTu,9999),b.MaBan"); q.addBindValue(areaBox->currentData()); if(!q.exec()){QMessageBox::warning(nullptr,"Không tải được sơ đồ",q.lastError().text());return;}
             while(q.next()) {int r=table->rowCount(); table->insertRow(r); for(int c=0;c<5;++c)table->setItem(r,c,new QTableWidgetItem(q.value(c).toString()));
-                auto *b=new QPushButton(QString("%1\n%2 chỗ\n%3").arg(q.value(1).toString()).arg(q.value(2).toInt()).arg(q.value(5).toString())); b->setMinimumSize(100,72); QString bg="#BFE2C5"; if(q.value(5).toString()=="Đã đặt")bg="#F8E3AF";else if(q.value(5).toString()=="Đang sử dụng")bg="#F3C8C7";else if(q.value(5).toString()=="Bảo trì")bg="#D9D9D6"; b->setStyleSheet(QString("QPushButton{background:%1;border:1px solid #B7D7BE;border-radius:12px;color:#244D3A;padding:8px;} QPushButton:hover{border:2px solid #4F8963;}").arg(bg)); int x=q.value(3).toInt(), y=q.value(4).toInt(); previewGrid->addWidget(b,y,x); QString id=q.value(0).toString(); QObject::connect(b,&QPushButton::clicked,table,[table,id,tableId,tableName,seats,col,row](){for(int rr=0;rr<table->rowCount();++rr)if(table->item(rr,0)&&table->item(rr,0)->text()==id){table->selectRow(rr);tableId->setText(table->item(rr,0)->text());tableName->setText(table->item(rr,1)->text());seats->setValue(table->item(rr,2)->text().toInt());col->setValue(table->item(rr,3)->text().toInt());row->setValue(table->item(rr,4)->text().toInt());break;}});
+                auto *b=new QPushButton(QString("%1\n%2 chỗ\n%3").arg(q.value(1).toString()).arg(q.value(2).toInt()).arg(q.value(5).toString())); b->setMinimumSize(100,72); QString bg="#BFE2C5"; if(q.value(5).toString()=="Đã đặt")bg="#F8E3AF";else if(q.value(5).toString()=="Đang sử dụng")bg="#F3C8C7";else if(q.value(5).toString()=="Bảo trì")bg="#D9D9D6"; b->setStyleSheet(QString("QPushButton{background:%1;border:1px solid #B7D7BE;border-radius:12px;color:#000000;padding:8px;} QPushButton:hover{border:2px solid #4F8963;}").arg(bg)); int x=q.value(3).toInt(), y=q.value(4).toInt(); previewGrid->addWidget(b,y,x); QString id=q.value(0).toString(); QObject::connect(b,&QPushButton::clicked,table,[table,id,tableId,tableName,seats,col,row](){for(int rr=0;rr<table->rowCount();++rr)if(table->item(rr,0)&&table->item(rr,0)->text()==id){table->selectRow(rr);tableId->setText(table->item(rr,0)->text());tableName->setText(table->item(rr,1)->text());seats->setValue(table->item(rr,2)->text().toInt());col->setValue(table->item(rr,3)->text().toInt());row->setValue(table->item(rr,4)->text().toInt());break;}});
             }
         };
         QObject::connect(areaBox,QOverload<int>::of(&QComboBox::currentIndexChanged),w,[reload](int){reload();});
@@ -443,7 +475,7 @@ private:
         root->setContentsMargins(0,0,0,0);
         root->setSpacing(12);
         root->addWidget(label("Nhân viên & tài khoản", "pageTitle"));
-        root->addWidget(label("Admin tạo tài khoản, cấp mật khẩu ban đầu, cập nhật trạng thái hoặc xóa tài khoản không còn sử dụng. Dữ liệu được lưu trực tiếp vào SQL Server.", "muted"));
+        root->addWidget(label("Admin tạo tài khoản, xác thực Admin trước khi cấp lại mật khẩu, cập nhật trạng thái hoặc xóa tài khoản. Mật khẩu cũ được mã hóa một chiều nên không thể khôi phục; mật khẩu mới được hiển thị sau khi cấp.", "muted"));
 
         auto *formPanel = panel();
         auto *formLayout = new QVBoxLayout(formPanel);
@@ -452,6 +484,14 @@ private:
         auto *fullName = new QLineEdit; fullName->setPlaceholderText("Họ và tên nhân viên");
         auto *username = new QLineEdit; username->setPlaceholderText("Tên đăng nhập duy nhất");
         auto *password = new QLineEdit; password->setPlaceholderText("Mật khẩu ban đầu (ít nhất 10 ký tự)"); password->setEchoMode(QLineEdit::Password);
+        auto *showInitialPassword = new QPushButton("Hiện"); showInitialPassword->setObjectName("soft"); showInitialPassword->setCheckable(true);
+        connect(showInitialPassword, &QPushButton::toggled, password, [password, showInitialPassword](bool visible) {
+            password->setEchoMode(visible ? QLineEdit::Normal : QLineEdit::Password);
+            showInitialPassword->setText(visible ? "Ẩn" : "Hiện");
+        });
+        auto *passwordField = new QWidget; auto *passwordFieldLayout = new QHBoxLayout(passwordField);
+        passwordFieldLayout->setContentsMargins(0,0,0,0); passwordFieldLayout->setSpacing(6);
+        passwordFieldLayout->addWidget(password,1); passwordFieldLayout->addWidget(showInitialPassword);
         auto *phone = new QLineEdit; phone->setPlaceholderText("Số điện thoại");
         auto *email = new QLineEdit; email->setPlaceholderText("Email");
         auto *gender = new QComboBox; gender->addItems({"Chưa cập nhật", "Nam", "Nữ", "Khác"});
@@ -460,7 +500,7 @@ private:
         auto *salary = new QDoubleSpinBox; salary->setRange(0,1000000000); salary->setDecimals(0); salary->setSuffix(" đ/tháng"); salary->setSingleStep(500000);
         form->addWidget(label("Họ và tên"),0,0); form->addWidget(fullName,1,0);
         form->addWidget(label("Tên đăng nhập"),0,1); form->addWidget(username,1,1);
-        form->addWidget(label("Mật khẩu ban đầu"),0,2); form->addWidget(password,1,2);
+        form->addWidget(label("Mật khẩu ban đầu"),0,2); form->addWidget(passwordField,1,2);
         form->addWidget(label("Số điện thoại"),2,0); form->addWidget(phone,3,0);
         form->addWidget(label("Email"),2,1); form->addWidget(email,3,1);
         form->addWidget(label("Giới tính"),2,2); form->addWidget(gender,3,2);
@@ -480,7 +520,7 @@ private:
         auto *remove = new QPushButton("Xóa tài khoản"); remove->setObjectName("primary"); remove->setStyleSheet("QPushButton#primary{background:#C96F68;}");
         auto *resetPassword = new QPushButton("Đặt lại mật khẩu"); resetPassword->setObjectName("soft");
         toolbar->addWidget(filter,1); toolbar->addWidget(refresh); toolbar->addWidget(toggle); toolbar->addWidget(resetPassword); toolbar->addWidget(remove); listLayout->addLayout(toolbar);
-        auto *table = new QTableWidget(0,9); table->setHorizontalHeaderLabels({"Mã NV","Họ tên","Tên đăng nhập","Điện thoại","Email","Chức vụ","Vai trò","Trạng thái","Mật khẩu"}); table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); table->verticalHeader()->setVisible(false); table->setSelectionBehavior(QAbstractItemView::SelectRows); table->setSelectionMode(QAbstractItemView::SingleSelection); table->setEditTriggers(QAbstractItemView::NoEditTriggers); listLayout->addWidget(table,1); root->addWidget(listPanel,1);
+        auto *table = new QTableWidget(0,10); table->setHorizontalHeaderLabels({"Mã NV","Họ tên","Tên đăng nhập","Điện thoại","Email","Chức vụ","Vai trò","Trạng thái","Mật khẩu","Thao tác"}); table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); table->verticalHeader()->setVisible(false); table->setSelectionBehavior(QAbstractItemView::SelectRows); table->setSelectionMode(QAbstractItemView::SingleSelection); table->setEditTriggers(QAbstractItemView::NoEditTriggers); listLayout->addWidget(table,1); root->addWidget(listPanel,1);
 
         auto loadEmployees = [this,table]() {
             table->setRowCount(0);
@@ -489,8 +529,32 @@ private:
             if (!q.exec("SELECT nv.MaNV,nv.HoTen,tk.MaTK,tk.TenDangNhap,ISNULL(nv.SoDienThoai,''),ISNULL(nv.Email,''),ISNULL(nv.ChucVu,''),tk.VaiTro,tk.TrangThai FROM dbo.TaiKhoan tk INNER JOIN dbo.NhanVien nv ON nv.MaNV=tk.MaNV WHERE tk.VaiTro IN (N'Nhân viên',N'NhanVien') ORDER BY nv.HoTen")) { QMessageBox::critical(this,"Không tải được nhân viên",q.lastError().text()); return; }
             while(q.next()) {
                 int r=table->rowCount(); table->insertRow(r);
-                const QList<QString> values={q.value(0).toString(),q.value(1).toString(),q.value(3).toString(),q.value(4).toString(),q.value(5).toString(),q.value(6).toString(),q.value(7).toString(),q.value(8).toString(),QStringLiteral("••••••••")};
-                for(int c=0;c<values.size();++c) { auto *it=new QTableWidgetItem(values[c]); if(c==0) it->setData(Qt::UserRole,q.value(2).toString()); if(c==8) it->setToolTip("Mật khẩu được lưu dạng hash nên không thể xem lại. Dùng nút Đặt lại mật khẩu để cấp mật khẩu mới."); table->setItem(r,c,it); }
+                const QList<QString> values={q.value(0).toString(),q.value(1).toString(),q.value(3).toString(),q.value(4).toString(),q.value(5).toString(),q.value(6).toString(),q.value(7).toString(),q.value(8).toString(),QStringLiteral("••••••••••")};
+                for(int c=0;c<values.size();++c) { auto *it=new QTableWidgetItem(values[c]); if(c==0) it->setData(Qt::UserRole,q.value(2).toString()); if(c==8) { it->setToolTip("Mật khẩu được lưu bằng PBKDF2 nên không thể xem ngược mật khẩu cũ. Nhấn nút Xem để xác thực Admin và cấp mật khẩu mới nếu cần."); it->setForeground(QColor("#597260")); } table->setItem(r,c,it); }
+                auto *viewPassword = new QPushButton("👁 Xem / cấp lại"); viewPassword->setObjectName("soft"); viewPassword->setCursor(Qt::PointingHandCursor);
+                const QString accountId=q.value(2).toString();
+                QObject::connect(viewPassword,&QPushButton::clicked,this,[this,accountId,table,r]() {
+                    if(userRole!="Admin") { QMessageBox::warning(this,"Không đủ quyền","Chỉ Admin mới được xem/cấp lại mật khẩu nhân viên."); return; }
+                    bool ok=false;
+                    const QString adminUsername=QInputDialog::getText(this,"Xác thực Admin","Nhập tên đăng nhập Admin:",QLineEdit::Normal,QString(),&ok).trimmed();
+                    if(!ok || adminUsername.isEmpty()) return;
+                    const QString adminPassword=QInputDialog::getText(this,"Xác thực Admin","Nhập mật khẩu Admin để tiếp tục:",QLineEdit::Password,QString(),&ok);
+                    if(!ok) return;
+                    TaiKhoanService accountService; DangNhapService loginService(accountService);
+                    const TaiKhoan *verified=loginService.dangNhap(adminUsername.toStdString(),adminPassword.toStdString());
+                    if(!verified || (verified->getVaiTro()!="Admin" && verified->getVaiTro()!="Quản lý")) {
+                        QMessageBox::warning(this,"Xác thực thất bại","Tên đăng nhập/mật khẩu Admin không đúng hoặc tài khoản không có quyền Admin."); return;
+                    }
+                    QMessageBox::information(this,"Không thể khôi phục mật khẩu cũ","Mật khẩu cũ được lưu bằng PBKDF2 nên không thể giải mã. Bạn có thể cấp mật khẩu mới rồi xem mật khẩu mới một lần để gửi cho nhân viên.");
+                    const QString newPassword=QInputDialog::getText(this,"Cấp mật khẩu mới","Nhập mật khẩu mới (ít nhất 10 ký tự):",QLineEdit::Password,QString(),&ok);
+                    if(!ok) return;
+                    if(newPassword.size()<10) { QMessageBox::warning(this,"Mật khẩu chưa hợp lệ","Mật khẩu phải có ít nhất 10 ký tự."); return; }
+                    QSqlQuery update(DatabaseManager::database()); update.prepare("UPDATE dbo.TaiKhoan SET MatKhau=? WHERE MaTK=? AND VaiTro IN (N'Nhân viên',N'NhanVien')"); update.addBindValue(PasswordUtils::hashPassword(newPassword)); update.addBindValue(accountId);
+                    if(!update.exec() || update.numRowsAffected()!=1) { QMessageBox::critical(this,"Không cấp được mật khẩu",update.lastError().text()); return; }
+                    if(table->item(r,8)) table->item(r,8)->setText(newPassword);
+                    QMessageBox::information(this,"Mật khẩu mới đã được cấp",QString("Mật khẩu mới của nhân viên là:\n\n%1\n\nHãy chuyển mật khẩu này trực tiếp cho nhân viên. Mật khẩu sẽ không thể xem lại sau khi đóng/mở lại trang.").arg(newPassword));
+                });
+                table->setCellWidget(r,9,viewPassword);
             }
         };
         connect(refresh,&QPushButton::clicked,this,loadEmployees);
