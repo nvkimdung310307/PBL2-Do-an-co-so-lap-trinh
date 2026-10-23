@@ -4,6 +4,9 @@
 #include <QFrame>
 #include <QLabel>
 #include <QPushButton>
+#include <QMouseEvent>
+#include <QButtonGroup>
+#include <QAbstractButton>
 #include <QLineEdit>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -48,6 +51,44 @@
 #include "taikhoan/DangNhapService.h"
 #include "oop/TaiKhoan.h"
 #include "taikhoan/PasswordUtils.h"
+
+// Nút bàn hỗ trợ kéo-thả trực tiếp trên sơ đồ. Không cần Q_OBJECT/moc.
+class DraggableTableButton : public QPushButton {
+public:
+    using QPushButton::QPushButton;
+    std::function<void(const QPoint &)> onDrop;
+protected:
+    void mousePressEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            pressPosition = event->position().toPoint();
+            dragging = false;
+        }
+        QPushButton::mousePressEvent(event);
+    }
+    void mouseMoveEvent(QMouseEvent *event) override {
+        if ((event->buttons() & Qt::LeftButton) &&
+            (event->position().toPoint() - pressPosition).manhattanLength() >= QApplication::startDragDistance()) {
+            dragging = true;
+            setCursor(Qt::ClosedHandCursor);
+            event->accept();
+            return;
+        }
+        QPushButton::mouseMoveEvent(event);
+    }
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton && dragging) {
+            dragging = false;
+            unsetCursor();
+            if (onDrop) onDrop(event->globalPosition().toPoint());
+            event->accept();
+            return; // Không phát clicked sau khi kéo thả.
+        }
+        QPushButton::mouseReleaseEvent(event);
+    }
+private:
+    QPoint pressPosition;
+    bool dragging = false;
+};
 
 static const char *STYLE = R"(
 * { font-family: 'Segoe UI'; }
@@ -195,62 +236,320 @@ private:
             mh->addWidget(legendItem);
         }
         mv->addLayout(mh);
-        auto *floors=new QHBoxLayout;
-        auto *floor=new QGridLayout; floor->setSpacing(10);
-        QSqlQuery areaQuery(DatabaseManager::database());
-        bool anyTables=false;
-        if (DatabaseManager::isOpen() && areaQuery.exec("SELECT kv.MaKhuVuc, kv.TenKhuVuc FROM dbo.KhuVuc kv ORDER BY kv.TenKhuVuc")) {
-            while(areaQuery.next()) {
-                const QString areaId=areaQuery.value(0).toString();
-                const QString areaName=areaQuery.value(1).toString();
-                auto *fb=new QPushButton(areaName); fb->setObjectName("soft"); floors->addWidget(fb);
-                auto *areaPanel=new QWidget;
-                areaPanel->setMinimumHeight(100);
-                areaPanel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
-                auto *areaLayout=new QGridLayout(areaPanel);
-                areaLayout->setContentsMargins(4,4,4,4);
+        auto *floorTabsRow = new QHBoxLayout;
+        floorTabsRow->setSpacing(8);
+        auto *refreshFloorMap = new QPushButton("↻ Làm mới sơ đồ");
+        refreshFloorMap->setObjectName("soft");
+        floorTabsRow->addStretch();
+        floorTabsRow->addWidget(refreshFloorMap);
+        mv->addLayout(floorTabsRow);
+
+        auto *floors = new QHBoxLayout;
+        floors->setSpacing(8);
+        auto *tabGroup = new QButtonGroup(w);
+        tabGroup->setExclusive(true);
+        auto *areaStack = new QStackedWidget;
+        areaStack->setMinimumHeight(190);
+        areaStack->setStyleSheet("QStackedWidget{background:transparent;border:0;}");
+        auto *areaScroll = new QScrollArea;
+        areaScroll->setWidgetResizable(true);
+        areaScroll->setFrameShape(QFrame::NoFrame);
+        areaScroll->setStyleSheet("QScrollArea{background:transparent;border:0;} QWidget#qt_scrollarea_viewport{background:transparent;}");
+        areaScroll->setWidget(areaStack);
+        mv->addLayout(floors);
+        mv->addWidget(areaScroll, 1);
+
+        auto reloadDashboardAreas = [this, w, floors, tabGroup, areaStack]() {
+            // Remove the previous dynamic tabs and panels before re-reading SQL Server.
+            const auto oldButtons = tabGroup->buttons();
+            for (auto *button : oldButtons) {
+                tabGroup->removeButton(button);
+                floors->removeWidget(button);
+                button->deleteLater();
+            }
+            while (areaStack->count() > 0) {
+                QWidget *oldPage = areaStack->widget(0);
+                areaStack->removeWidget(oldPage);
+                oldPage->deleteLater();
+            }
+
+            if (!DatabaseManager::connect()) {
+                auto *message = new QWidget;
+                auto *layout = new QVBoxLayout(message);
+                auto *text = label("Chưa kết nối SQL Server. Kiểm tra database.ini để tải sơ đồ bàn.", "muted");
+                text->setWordWrap(true);
+                layout->addWidget(text);
+                areaStack->addWidget(message);
+                return;
+            }
+
+            QSqlQuery areaQuery(DatabaseManager::database());
+            if (!areaQuery.exec("SELECT kv.MaKhuVuc, kv.TenKhuVuc FROM dbo.KhuVuc kv ORDER BY kv.TenKhuVuc")) {
+                auto *message = new QWidget;
+                auto *layout = new QVBoxLayout(message);
+                auto *text = label("Không tải được danh sách khu vực: " + areaQuery.lastError().text(), "muted");
+                text->setWordWrap(true);
+                layout->addWidget(text);
+                areaStack->addWidget(message);
+                return;
+            }
+
+            int areaIndex = 0;
+            while (areaQuery.next()) {
+                const QString areaId = areaQuery.value(0).toString();
+                const QString areaName = areaQuery.value(1).toString();
+                auto *tab = new QPushButton(areaName);
+                tab->setObjectName("soft");
+                tab->setCheckable(true);
+                tab->setMinimumHeight(38);
+                tab->setStyleSheet("QPushButton{background:#EDF5ED;color:#202820;border:1px solid #DCEADD;border-radius:10px;padding:9px 14px;} QPushButton:hover{background:#E2F0E2;} QPushButton:checked{background:#C7E0CE;color:#202820;border:1px solid #8BB79A;font-weight:700;}");
+                tabGroup->addButton(tab, areaIndex);
+                floors->addWidget(tab, 1);
+
+                auto *areaPanel = new QWidget;
+                areaPanel->setStyleSheet("background:transparent;color:#202820;");
+                auto *areaLayout = new QGridLayout(areaPanel);
+                areaLayout->setContentsMargins(4, 8, 4, 8);
                 areaLayout->setSpacing(8);
+
                 QSqlQuery tableQuery(DatabaseManager::database());
                 tableQuery.prepare("SELECT b.MaBan,b.TenBan,b.SoCho,b.TrangThai,ISNULL(p.Cot,-1),ISNULL(p.Hang,-1) FROM dbo.Ban b LEFT JOIN dbo.BoTriBan p ON p.MaBan=b.MaBan WHERE b.MaKhuVuc=? ORDER BY ISNULL(p.Hang,9999),ISNULL(p.Cot,9999),b.MaBan");
                 tableQuery.addBindValue(areaId);
-                int col=0,row=0;
-                if(tableQuery.exec()) while(tableQuery.next()) {
-                    anyTables=true;
-                    QString id=tableQuery.value(0).toString(), name=tableQuery.value(1).toString();
-                    int seats=tableQuery.value(2).toInt(); QString status=tableQuery.value(3).toString();
-                    QString bg="#BFE2C5";
-                    if(status==QStringLiteral("Đã đặt")) bg="#F8E3AF";
-                    else if(status==QStringLiteral("Đang sử dụng")) bg="#F3C8C7";
-                    else if(status==QStringLiteral("Bảo trì")) bg="#D9D9D6";
-                    auto *tb=new QPushButton(name+"\n"+QString::number(seats)+" chỗ");
-                    tb->setToolTip("Mã: "+id+"\nTrạng thái: "+status+"\nKhu vực: "+areaName);
-                    tb->setMinimumHeight(58);
-                    tb->setStyleSheet(QString("QPushButton{background:%1;border:1px solid #B8D6BD;border-radius:12px;color:#000000;font-weight:600;} QPushButton:hover{border:2px solid #78A985;}").arg(bg));
-                    connect(tb,&QPushButton::clicked,this,[this,id,name,status]{QMessageBox::information(this,"Thông tin bàn",name+" ("+id+")\nTrạng thái: "+status);});
-                    int savedCol=tableQuery.value(4).toInt(), savedRow=tableQuery.value(5).toInt();
-                    if(savedCol>=0 && savedRow>=0) {
-                        areaLayout->addWidget(tb,savedRow,savedCol);
-                    } else {
-                        areaLayout->addWidget(tb,row,col);
-                        if(++col==4){col=0;++row;}
+                int col = 0, row = 0, tableCount = 0;
+                if (tableQuery.exec()) {
+                    while (tableQuery.next()) {
+                        ++tableCount;
+                        const QString id = tableQuery.value(0).toString();
+                        const QString name = tableQuery.value(1).toString();
+                        const int seats = tableQuery.value(2).toInt();
+                        const QString status = tableQuery.value(3).toString();
+                        QString bg = "#BFE2C5";
+                        if (status == QStringLiteral("Đã đặt")) bg = "#F8E3AF";
+                        else if (status == QStringLiteral("Đang sử dụng")) bg = "#F3C8C7";
+                        else if (status == QStringLiteral("Bảo trì")) bg = "#D9D9D6";
+
+                        auto *tableButton = new DraggableTableButton(name + "\n" + QString::number(seats) + " chỗ");
+                        tableButton->setToolTip("Mã: " + id + "\nTrạng thái: " + status + "\nKhu vực: " + areaName);
+                        tableButton->setMinimumSize(125, 72);
+                        tableButton->setStyleSheet(QString("QPushButton{background:%1;border:1px solid #B8D6BD;border-radius:12px;color:#000000;font-weight:600;padding:8px;} QPushButton:hover{border:2px solid #78A985;}").arg(bg));
+                        const int savedCol = tableQuery.value(4).toInt() >= 0 ? tableQuery.value(4).toInt() : col;
+                        const int savedRow = tableQuery.value(5).toInt() >= 0 ? tableQuery.value(5).toInt() : row;
+                        areaLayout->addWidget(tableButton, savedRow, savedCol);
+                        tableButton->setProperty("tableId", id);
+                        tableButton->setProperty("gridCol", savedCol);
+                        tableButton->setProperty("gridRow", savedRow);
+                        tableButton->setCursor(Qt::OpenHandCursor);
+                        tableButton->setToolTip("Kéo thả bàn đến vị trí mới để di chuyển. Thả lên bàn khác để đổi chỗ.");
+                        tableButton->onDrop = [this, areaId, areaPanel, areaLayout, tableButton, id](const QPoint &globalPos) {
+                            if (userRole != QStringLiteral("Admin")) {
+                                QMessageBox::information(this, "Chỉ dành cho Admin", "Chỉ Admin mới có thể di chuyển bàn trên sơ đồ.");
+                                return;
+                            }
+                            const int oldCol = tableButton->property("gridCol").toInt();
+                            const int oldRow = tableButton->property("gridRow").toInt();
+                            const QPoint dropPos = areaPanel->mapFromGlobal(globalPos);
+                            DraggableTableButton *targetButton = nullptr;
+                            for (int i = 0; i < areaLayout->count(); ++i) {
+                                auto *candidate = dynamic_cast<DraggableTableButton *>(areaLayout->itemAt(i)->widget());
+                                if (candidate && candidate != tableButton && candidate->geometry().contains(dropPos)) {
+                                    targetButton = candidate;
+                                    break;
+                                }
+                            }
+
+                            int newCol = oldCol;
+                            int newRow = oldRow;
+                            QString otherId;
+                            int otherCol = -1, otherRow = -1;
+                            if (targetButton) {
+                                newCol = targetButton->property("gridCol").toInt();
+                                newRow = targetButton->property("gridRow").toInt();
+                                otherId = targetButton->property("tableId").toString();
+                                otherCol = newCol;
+                                otherRow = newRow;
+                            } else {
+                                // Thả vào ô trống: suy ra chỉ số hàng/cột từ kích thước ô hiện có.
+                                DraggableTableButton *reference = nullptr;
+                                for (int i = 0; i < areaLayout->count(); ++i) {
+                                    reference = dynamic_cast<DraggableTableButton *>(areaLayout->itemAt(i)->widget());
+                                    if (reference) break;
+                                }
+                                if (!reference) return;
+                                const int spacingX = areaLayout->horizontalSpacing() >= 0 ? areaLayout->horizontalSpacing() : 8;
+                                const int spacingY = areaLayout->verticalSpacing() >= 0 ? areaLayout->verticalSpacing() : 8;
+                                const int stepX = qMax(1, reference->width() + spacingX);
+                                const int stepY = qMax(1, reference->height() + spacingY);
+                                const int originX = reference->geometry().left() - reference->property("gridCol").toInt() * stepX;
+                                const int originY = reference->geometry().top() - reference->property("gridRow").toInt() * stepY;
+                                newCol = qBound(0, (dropPos.x() - originX) / stepX, 19);
+                                newRow = qBound(0, (dropPos.y() - originY) / stepY, 19);
+                                if (newCol == oldCol && newRow == oldRow) return;
+                            }
+                            if (newCol == oldCol && newRow == oldRow) return;
+
+                            QSqlDatabase db = DatabaseManager::database();
+                            if (!db.transaction()) {
+                                QMessageBox::critical(this, "Lỗi SQL", db.lastError().text());
+                                return;
+                            }
+                            // Kiểm tra va chạm từ SQL để vẫn an toàn nếu sơ đồ đang có dữ liệu vị trí cũ.
+                            QSqlQuery occupied(db);
+                            occupied.prepare("SELECT TOP 1 b.MaBan FROM dbo.Ban b JOIN dbo.BoTriBan p ON p.MaBan=b.MaBan WHERE b.MaKhuVuc=? AND p.Cot=? AND p.Hang=? AND b.MaBan<>?");
+                            occupied.addBindValue(areaId); occupied.addBindValue(newCol); occupied.addBindValue(newRow); occupied.addBindValue(id);
+                            if (!occupied.exec()) {
+                                db.rollback();
+                                QMessageBox::critical(this, "Không kiểm tra được vị trí", occupied.lastError().text());
+                                return;
+                            }
+                            if (occupied.next()) {
+                                const QString occupiedId = occupied.value(0).toString();
+                                if (otherId.isEmpty()) otherId = occupiedId;
+                                if (otherId != occupiedId) {
+                                    db.rollback();
+                                    QMessageBox::warning(this, "Vị trí không khả dụng", "Ô này đã có bàn. Hãy thả trực tiếp lên bàn đó để đổi chỗ.");
+                                    return;
+                                }
+                                if (!targetButton) {
+                                    for (int i = 0; i < areaLayout->count(); ++i) {
+                                        auto *candidate = dynamic_cast<DraggableTableButton *>(areaLayout->itemAt(i)->widget());
+                                        if (candidate && candidate->property("tableId").toString() == occupiedId) {
+                                            targetButton = candidate;
+                                            otherCol = candidate->property("gridCol").toInt();
+                                            otherRow = candidate->property("gridRow").toInt();
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            occupied.finish();
+
+                            if (!otherId.isEmpty() && targetButton) {
+                                // Di chuyển bàn đang kéo vào tọa độ tạm để tránh va chạm khóa/vị trí duy nhất.
+                                QSqlQuery temporary(db);
+                                temporary.prepare("UPDATE dbo.BoTriBan SET Cot=-100,Hang=-100 WHERE MaBan=?");
+                                temporary.addBindValue(id);
+                                if (!temporary.exec()) { db.rollback(); QMessageBox::critical(this, "Không đổi được vị trí", temporary.lastError().text()); return; }
+                                QSqlQuery swap(db);
+                                swap.prepare("IF EXISTS(SELECT 1 FROM dbo.BoTriBan WHERE MaBan=?) UPDATE dbo.BoTriBan SET Cot=?,Hang=? WHERE MaBan=? ELSE INSERT dbo.BoTriBan(MaBan,Cot,Hang) VALUES(?,?,?)");
+                                swap.addBindValue(otherId); swap.addBindValue(oldCol); swap.addBindValue(oldRow); swap.addBindValue(otherId);
+                                swap.addBindValue(otherId); swap.addBindValue(oldCol); swap.addBindValue(oldRow);
+                                if (!swap.exec()) { db.rollback(); QMessageBox::critical(this, "Không đổi được vị trí", swap.lastError().text()); return; }
+                            }
+                            QSqlQuery move(db);
+                            move.prepare("IF EXISTS(SELECT 1 FROM dbo.BoTriBan WHERE MaBan=?) UPDATE dbo.BoTriBan SET Cot=?,Hang=? WHERE MaBan=? ELSE INSERT dbo.BoTriBan(MaBan,Cot,Hang) VALUES(?,?,?)");
+                            move.addBindValue(id); move.addBindValue(newCol); move.addBindValue(newRow); move.addBindValue(id);
+                            move.addBindValue(id); move.addBindValue(newCol); move.addBindValue(newRow);
+                            if (!move.exec() || !db.commit()) {
+                                db.rollback();
+                                QMessageBox::critical(this, "Không lưu được vị trí", move.lastError().text().isEmpty() ? db.lastError().text() : move.lastError().text());
+                                return;
+                            }
+                            areaLayout->removeWidget(tableButton);
+                            tableButton->setProperty("gridCol", newCol);
+                            tableButton->setProperty("gridRow", newRow);
+                            areaLayout->addWidget(tableButton, newRow, newCol);
+                            if (!otherId.isEmpty() && targetButton) {
+                                areaLayout->removeWidget(targetButton);
+                                targetButton->setProperty("gridCol", oldCol);
+                                targetButton->setProperty("gridRow", oldRow);
+                                areaLayout->addWidget(targetButton, oldRow, oldCol);
+                            }
+                            areaPanel->updateGeometry();
+                        };
+                        if (tableQuery.value(4).toInt() < 0 || tableQuery.value(5).toInt() < 0) {
+                            if (++col == 4) { col = 0; ++row; }
+                        }
+                        // Admin can edit a table's position directly from the dashboard map.
+                        connect(tableButton, &QPushButton::clicked, this,
+                                [this, id, name, status, areaName, areaId, tableButton, areaLayout, savedCol, savedRow] {
+                            if (userRole != QStringLiteral("Admin")) {
+                                QMessageBox::information(this, "Thông tin bàn", name + " (" + id + ")\nKhu vực: " + areaName + "\nTrạng thái: " + status);
+                                return;
+                            }
+                            QDialog dialog(this);
+                            dialog.setWindowTitle("Chỉnh vị trí bàn — " + name);
+                            dialog.setMinimumWidth(330);
+                            auto *form = new QFormLayout(&dialog);
+                            auto *colEdit = new QSpinBox(&dialog); colEdit->setRange(0, 19); colEdit->setValue(tableButton->property("gridCol").toInt());
+                            auto *rowEdit = new QSpinBox(&dialog); rowEdit->setRange(0, 19); rowEdit->setValue(tableButton->property("gridRow").toInt());
+                            auto *hint = new QLabel("Đổi Cột/Hàng để di chuyển bàn trên sơ đồ.\nCột 0–19, Hàng 0–19.", &dialog);
+                            hint->setWordWrap(true);
+                            form->addRow("Bàn", new QLabel(name + " (" + id + ")", &dialog));
+                            form->addRow("Khu vực", new QLabel(areaName, &dialog));
+                            form->addRow("Cột", colEdit);
+                            form->addRow("Hàng", rowEdit);
+                            form->addRow(hint);
+                            auto *buttons = new QHBoxLayout;
+                            auto *save = new QPushButton("Lưu vị trí", &dialog); save->setObjectName("primary");
+                            auto *cancel = new QPushButton("Hủy", &dialog); cancel->setObjectName("soft");
+                            buttons->addWidget(save); buttons->addWidget(cancel); form->addRow(buttons);
+                            QObject::connect(save, &QPushButton::clicked, &dialog, &QDialog::accept);
+                            QObject::connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
+                            if (dialog.exec() != QDialog::Accepted) return;
+
+                            QSqlDatabase db = DatabaseManager::database();
+                            if (!db.transaction()) { QMessageBox::critical(this, "Lỗi SQL", db.lastError().text()); return; }
+                            QSqlQuery occupied(db);
+                            occupied.prepare("SELECT TOP 1 p.MaBan,b.TenBan FROM dbo.BoTriBan p JOIN dbo.Ban b ON b.MaBan=p.MaBan WHERE b.MaKhuVuc=? AND p.Cot=? AND p.Hang=? AND p.MaBan<>?");
+                            occupied.addBindValue(areaId); occupied.addBindValue(colEdit->value()); occupied.addBindValue(rowEdit->value()); occupied.addBindValue(id);
+                            QString otherId, otherName;
+                            if (!occupied.exec()) { db.rollback(); QMessageBox::critical(this, "Lỗi SQL", occupied.lastError().text()); return; }
+                            if (occupied.next()) { otherId = occupied.value(0).toString(); otherName = occupied.value(1).toString(); }
+                            occupied.finish();
+                            if (!otherId.isEmpty()) {
+                                if (QMessageBox::question(this, "Vị trí đã có bàn", "Ô này đang có " + otherName + ". Bạn muốn đổi chỗ hai bàn không?", QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) { db.rollback(); return; }
+                                QSqlQuery swap(db);
+                                swap.prepare("UPDATE dbo.BoTriBan SET Cot=?,Hang=? WHERE MaBan=?");
+                                swap.addBindValue(savedCol); swap.addBindValue(savedRow); swap.addBindValue(otherId);
+                                if (!swap.exec()) { db.rollback(); QMessageBox::critical(this, "Không đổi được vị trí", swap.lastError().text()); return; }
+                            }
+                            QSqlQuery update(db);
+                            update.prepare("IF EXISTS(SELECT 1 FROM dbo.BoTriBan WHERE MaBan=?) UPDATE dbo.BoTriBan SET Cot=?,Hang=? WHERE MaBan=? ELSE INSERT dbo.BoTriBan(MaBan,Cot,Hang) VALUES(?,?,?)");
+                            update.addBindValue(id); update.addBindValue(colEdit->value()); update.addBindValue(rowEdit->value()); update.addBindValue(id);
+                            update.addBindValue(id); update.addBindValue(colEdit->value()); update.addBindValue(rowEdit->value());
+                            if (!update.exec() || !db.commit()) { db.rollback(); QMessageBox::critical(this, "Không lưu được vị trí", update.lastError().text().isEmpty() ? db.lastError().text() : update.lastError().text()); return; }
+                            // Update the visible map immediately; no need to restart the app.
+                            areaLayout->removeWidget(tableButton);
+                            areaLayout->addWidget(tableButton, rowEdit->value(), colEdit->value());
+                            QMessageBox::information(this, "Đã lưu", "Đã cập nhật vị trí bàn trên sơ đồ.");
+                        });
                     }
                 }
-                if(areaLayout->count()==0) {
-                    auto *emptyArea=label("Khu vực này chưa có bàn. Admin có thể thêm bàn trong mục Quản lý bàn hoặc Thiết kế sơ đồ bàn.","muted");
+
+                if (tableCount == 0) {
+                    auto *emptyArea = label("Khu vực này chưa có bàn. Admin có thể thêm bàn trong mục Quản lý bàn hoặc Thiết kế sơ đồ bàn.", "muted");
                     emptyArea->setWordWrap(true);
-                    emptyArea->setMinimumHeight(42);
-                    areaLayout->addWidget(emptyArea,0,0,1,4);
+                    emptyArea->setMinimumHeight(60);
+                    areaLayout->addWidget(emptyArea, 0, 0, 1, 4);
                 }
-                const int areaRow = floor->rowCount();
-                floor->addWidget(areaPanel, areaRow, 0, 1, 4);
-                floor->setRowMinimumHeight(areaRow, 100);
+
+                areaStack->addWidget(areaPanel);
+                QObject::connect(tab, &QPushButton::clicked, areaStack, [areaStack, tabGroup, tab, areaIndex]() {
+                    areaStack->setCurrentIndex(areaIndex);
+                    tab->setChecked(true);
+                    for (auto *other : tabGroup->buttons()) {
+                        other->setProperty("activeArea", other == tab);
+                        other->style()->unpolish(other);
+                        other->style()->polish(other);
+                    }
+                });
+                ++areaIndex;
             }
-        }
-        if(!DatabaseManager::isOpen()) floor->addWidget(label("Chưa kết nối SQL Server. Kiểm tra database.ini để tải sơ đồ bàn.","muted"),0,0);
-        else if(!anyTables) floor->addWidget(label("Chưa có bàn trong database. Admin hãy tạo khu vực và bàn trước.","muted"),0,0);
-        mv->addLayout(floors);
-        mv->addLayout(floor, 1);
-        floor->setVerticalSpacing(12);
+
+            if (areaIndex == 0) {
+                auto *message = new QWidget;
+                auto *layout = new QVBoxLayout(message);
+                auto *text = label("Chưa có khu vực nào. Admin có thể tạo Tầng 1, Tầng 2, Phòng VIP hoặc khu vực mới trong mục Thiết kế sơ đồ bàn.", "muted");
+                text->setWordWrap(true);
+                layout->addWidget(text);
+                areaStack->addWidget(message);
+            } else {
+                if (QAbstractButton *first = tabGroup->button(0)) first->click();
+            }
+        };
+        refreshFloorMap->setToolTip("Tải lại khu vực và bàn từ SQL Server. Khu vực mới do Admin thêm sẽ xuất hiện tại đây.");
+        connect(refreshFloorMap, &QPushButton::clicked, w, reloadDashboardAreas);
+        reloadDashboardAreas();
         leftCol->addWidget(map,3);
 
         auto *foodPanel=panel(); auto*foodV=new QVBoxLayout(foodPanel); auto*foodHead=new QHBoxLayout;
@@ -410,7 +709,7 @@ private:
         previewLayout->addWidget(label("Xem trước sơ đồ", "sectionTitle"));
         auto *previewScroll = new QScrollArea; previewScroll->setWidgetResizable(true); previewScroll->setFrameShape(QFrame::NoFrame); previewScroll->setStyleSheet("QScrollArea{background:#F8FBF7;border:0;} QWidget#qt_scrollarea_viewport{background:#F8FBF7;}");
         auto *preview = new QWidget; preview->setStyleSheet("background:#F8FBF7;color:#17251B;"); preview->setAutoFillBackground(true); auto *previewGrid = new QGridLayout(preview); previewGrid->setSpacing(10); previewGrid->setContentsMargins(6,6,6,6); previewScroll->setWidget(preview); previewLayout->addWidget(previewScroll,1);
-        previewLayout->addWidget(label("Chọn một bàn ở danh sách, chỉnh Cột/Hàng rồi bấm Lưu vị trí bàn.","muted")); body->addWidget(previewPanel,2); root->addLayout(body,1);
+        previewLayout->addWidget(label("Admin có thể kéo-thả bàn trực tiếp trên sơ đồ; thả lên bàn khác để đổi chỗ.","muted")); body->addWidget(previewPanel,2); root->addLayout(body,1);
 
         auto reloadAreas = [this,areaBox](){QString current=areaBox->currentData().toString(); areaBox->clear(); QSqlQuery q(DatabaseManager::database()); if(q.exec("SELECT MaKhuVuc,TenKhuVuc FROM dbo.KhuVuc ORDER BY TenKhuVuc")) while(q.next()) areaBox->addItem(q.value(1).toString(),q.value(0).toString()); int i=areaBox->findData(current); if(i>=0) areaBox->setCurrentIndex(i);};
         auto reload = [this,areaBox,table,preview,previewGrid,tableId,tableName,seats,col,row](){
