@@ -686,9 +686,105 @@ private:
             if(!ins.exec()){db.rollback();QMessageBox::critical(this,"Không tạo được đặt bàn",ins.lastError().text());return;}
             if(date->date()==QDate::currentDate()){QSqlQuery up(db);up.prepare("UPDATE dbo.Ban SET TrangThai=N'Đã đặt' WHERE MaBan=? AND TrangThai=N'Trống'");up.addBindValue(maBan);if(!up.exec()){db.rollback();QMessageBox::critical(this,"Không cập nhật trạng thái bàn",up.lastError().text());return;}}
             if(!db.commit()){db.rollback();QMessageBox::critical(this,"Không lưu được đặt bàn",db.lastError().text());return;}
-            QMessageBox::information(this,"Đặt bàn thành công","Đã lưu lượt đặt "+maDB+" vào SQL Server.");name->clear();phone->clear();note->clear();loadTables();
+            QMessageBox::information(this,"Đặt bàn thành công","Đã lưu lượt đặt "+maDB+" vào SQL Server. Khi khách đến, chọn lịch bên dưới và bấm Xác nhận khách đến / Nhận bàn.");name->clear();phone->clear();note->clear();loadTables();
         });
-        v->addWidget(f);v->addStretch();loadTables();return w;
+        v->addWidget(f);
+
+        // Danh sach dat ban de nhan vien xac nhan khach den va cap nhat trang thai ban.
+        auto *reservationPanel = panel();
+        auto *reservationLayout = new QVBoxLayout(reservationPanel);
+        auto *reservationHeader = new QHBoxLayout;
+        reservationHeader->addWidget(label("Lịch đặt bàn / Xác nhận khách đến", "pageTitle"));
+        reservationHeader->addStretch();
+        auto *refreshReservations = new QPushButton("↻ Làm mới lịch");
+        refreshReservations->setObjectName("soft");
+        auto *confirmArrival = new QPushButton("✓ Xác nhận khách đến / Nhận bàn");
+        confirmArrival->setObjectName("primary");
+        reservationHeader->addWidget(refreshReservations);
+        reservationHeader->addWidget(confirmArrival);
+        reservationLayout->addLayout(reservationHeader);
+        reservationLayout->addWidget(label("Chọn một lịch đang 'Đã đặt' rồi xác nhận khách đến. Bàn sẽ chuyển sang 'Đang sử dụng' và POS có thể tiếp tục phục vụ.", "muted"));
+        auto *reservationTable = new QTableWidget(0, 7);
+        reservationTable->setHorizontalHeaderLabels({"Mã đặt", "Khách hàng", "Bàn", "Ngày", "Giờ", "Số người", "Trạng thái"});
+        reservationTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+        reservationTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+        reservationTable->setSelectionMode(QAbstractItemView::SingleSelection);
+        reservationTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+        reservationTable->verticalHeader()->setVisible(false);
+        reservationTable->setMinimumHeight(190);
+        reservationLayout->addWidget(reservationTable);
+        v->addWidget(reservationPanel, 1);
+
+        auto loadReservations = [this, reservationTable]() {
+            reservationTable->setRowCount(0);
+            if (!DatabaseManager::connect()) {
+                QMessageBox::warning(this, "SQL Server", "Không kết nối được cơ sở dữ liệu.");
+                return;
+            }
+            QSqlQuery q(DatabaseManager::database());
+            q.prepare("SELECT d.MaDatBan, kh.HoTen, b.TenBan, CONVERT(varchar(10), d.NgayDat, 23), "
+                      "CONVERT(varchar(5), d.GioDat, 108), d.SoNguoi, d.TrangThai "
+                      "FROM dbo.DatBan d JOIN dbo.KhachHang kh ON kh.MaKH=d.MaKH "
+                      "JOIN dbo.Ban b ON b.MaBan=d.MaBan "
+                      "WHERE d.NgayDat >= DATEADD(day,-1,CAST(GETDATE() AS date)) "
+                      "ORDER BY d.NgayDat DESC, d.GioDat DESC, d.MaDatBan DESC");
+            if (!q.exec()) {
+                QMessageBox::warning(this, "Không tải được lịch đặt", q.lastError().text());
+                return;
+            }
+            while (q.next()) {
+                const int row = reservationTable->rowCount();
+                reservationTable->insertRow(row);
+                for (int col = 0; col < 7; ++col) {
+                    auto *item = new QTableWidgetItem(q.value(col).toString());
+                    if (col == 0) item->setData(Qt::UserRole, q.value(0).toString());
+                    reservationTable->setItem(row, col, item);
+                }
+                const QString status = q.value(6).toString();
+                const QColor bg = status == QStringLiteral("Đã nhận bàn") ? QColor("#F3C8C7") :
+                                  status == QStringLiteral("Đã đặt") ? QColor("#F8E3AF") :
+                                  status == QStringLiteral("Đã hủy") || status == QStringLiteral("Không đến") ? QColor("#E5E6E2") : QColor("#E8F2E6");
+                for (int col = 0; col < 7; ++col) {
+                    if (reservationTable->item(row, col)) {
+                        reservationTable->item(row, col)->setBackground(bg);
+                        reservationTable->item(row, col)->setForeground(QColor("#202820"));
+                    }
+                }
+            }
+        };
+        connect(refreshReservations, &QPushButton::clicked, w, loadReservations);
+        connect(confirmArrival, &QPushButton::clicked, w, [this, reservationTable, loadReservations]() {
+            const int row = reservationTable->currentRow();
+            if (row < 0 || !reservationTable->item(row, 0)) {
+                QMessageBox::information(this, "Chưa chọn lịch", "Hãy chọn lịch đặt bàn cần xác nhận khách đến.");
+                return;
+            }
+            const QString bookingId = reservationTable->item(row, 0)->text();
+            const QString status = reservationTable->item(row, 6)->text();
+            if (status != QStringLiteral("Đã đặt")) {
+                QMessageBox::information(this, "Không thể xác nhận", "Chỉ lịch đang ở trạng thái 'Đã đặt' mới có thể xác nhận khách đến. Trạng thái hiện tại: " + status);
+                return;
+            }
+            if (QMessageBox::question(this, "Xác nhận khách đến",
+                    "Xác nhận khách của lượt " + bookingId + " đã đến và nhận bàn?\nBàn sẽ chuyển sang trạng thái 'Đang sử dụng'.",
+                    QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes) return;
+            QSqlQuery q(DatabaseManager::database());
+            q.prepare("EXEC dbo.sp_DatBan_XacNhanDen @MaDatBan=?");
+            q.addBindValue(bookingId);
+            if (!q.exec()) {
+                QMessageBox::critical(this, "Không xác nhận được khách", q.lastError().text());
+                return;
+            }
+            q.finish();
+            loadReservations();
+            QMessageBox::information(this, "Đã nhận bàn",
+                "Đã cập nhật lượt đặt thành 'Đã nhận bàn' và bàn thành 'Đang sử dụng'.\n"
+                "Hãy bấm 'Làm mới sơ đồ' ở Tổng quan nếu sơ đồ chưa cập nhật.");
+        });
+
+        loadTables();
+        loadReservations();
+        return w;
     }
     QWidget *makeTablesPage(){
         auto*w=new QWidget;auto*v=new QVBoxLayout(w);v->addWidget(label("Quản lý bàn ăn","pageTitle"));v->addWidget(label("Dữ liệu bàn lấy trực tiếp từ SQL Server","muted"));
