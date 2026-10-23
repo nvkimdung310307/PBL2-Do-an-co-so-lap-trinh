@@ -52,6 +52,14 @@
 static const char *STYLE = R"(
 * { font-family: 'Segoe UI'; }
 QLabel { color: #000000; }
+/* Dialogs and alerts: consistently light background + dark text for clear contrast. */
+QDialog, QMessageBox, QInputDialog { background-color: #F7FAF5; color: #202820; }
+QDialog QLabel, QMessageBox QLabel, QInputDialog QLabel { color: #202820; background-color: transparent; }
+QDialog QLineEdit, QDialog QTextEdit, QDialog QComboBox, QDialog QSpinBox,
+QInputDialog QLineEdit { background-color: #FFFFFF; color: #202820; border: 1px solid #C9DCCB; border-radius: 7px; selection-background-color: #CDE8D0; selection-color: #17251B; padding: 6px; }
+QDialog QPushButton, QMessageBox QPushButton, QInputDialog QPushButton { color: #202820; background-color: #E4EFE2; border: 1px solid #C7DCC8; border-radius: 7px; padding: 7px 16px; min-width: 64px; }
+QDialog QPushButton:hover, QMessageBox QPushButton:hover, QInputDialog QPushButton:hover { background-color: #CDE3CE; border-color: #9EBFA2; }
+QDialog QPushButton:pressed, QMessageBox QPushButton:pressed, QInputDialog QPushButton:pressed { background-color: #B8D5BB; }
 QMainWindow, QWidget#root { background: #F5F0E4; color: #000000; }
 QFrame#sidebar { background: #B9D3BA; border: 1px solid #A8C8AA; border-radius: 18px; }
 QLabel#brand { color: #000000; font-size: 21px; font-weight: 700; }
