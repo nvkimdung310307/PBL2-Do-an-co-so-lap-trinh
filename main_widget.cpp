@@ -24,6 +24,7 @@
 #include <QTimeEdit>
 #include <QComboBox>
 #include <QTextEdit>
+#include <QInputDialog>
 #include <QGraphicsDropShadowEffect>
 #include <QStyle>
 #include <QColor>
@@ -110,6 +111,9 @@ public:
         pages->addWidget(makeGenericPage("Thống kê"));
         pages->addWidget(makeAccountPage());
         pages->addWidget(makePosPage());
+        // Menu index 10: Thiết kế sơ đồ bàn. Must be added to QStackedWidget
+        // so clicking the sidebar entry actually opens this page.
+        pages->addWidget(makeFloorDesignPage());
         rv->addWidget(pages,1); outer->addWidget(right,1);
     }
 private:
@@ -474,8 +478,9 @@ private:
         auto *refresh = new QPushButton("Làm mới"); refresh->setObjectName("soft");
         auto *toggle = new QPushButton("Khóa / mở tài khoản"); toggle->setObjectName("soft");
         auto *remove = new QPushButton("Xóa tài khoản"); remove->setObjectName("primary"); remove->setStyleSheet("QPushButton#primary{background:#C96F68;}");
-        toolbar->addWidget(filter,1); toolbar->addWidget(refresh); toolbar->addWidget(toggle); toolbar->addWidget(remove); listLayout->addLayout(toolbar);
-        auto *table = new QTableWidget(0,8); table->setHorizontalHeaderLabels({"Mã NV","Họ tên","Tên đăng nhập","Điện thoại","Email","Chức vụ","Vai trò","Trạng thái"}); table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); table->verticalHeader()->setVisible(false); table->setSelectionBehavior(QAbstractItemView::SelectRows); table->setSelectionMode(QAbstractItemView::SingleSelection); table->setEditTriggers(QAbstractItemView::NoEditTriggers); listLayout->addWidget(table,1); root->addWidget(listPanel,1);
+        auto *resetPassword = new QPushButton("Đặt lại mật khẩu"); resetPassword->setObjectName("soft");
+        toolbar->addWidget(filter,1); toolbar->addWidget(refresh); toolbar->addWidget(toggle); toolbar->addWidget(resetPassword); toolbar->addWidget(remove); listLayout->addLayout(toolbar);
+        auto *table = new QTableWidget(0,9); table->setHorizontalHeaderLabels({"Mã NV","Họ tên","Tên đăng nhập","Điện thoại","Email","Chức vụ","Vai trò","Trạng thái","Mật khẩu"}); table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); table->verticalHeader()->setVisible(false); table->setSelectionBehavior(QAbstractItemView::SelectRows); table->setSelectionMode(QAbstractItemView::SingleSelection); table->setEditTriggers(QAbstractItemView::NoEditTriggers); listLayout->addWidget(table,1); root->addWidget(listPanel,1);
 
         auto loadEmployees = [this,table]() {
             table->setRowCount(0);
@@ -484,11 +489,23 @@ private:
             if (!q.exec("SELECT nv.MaNV,nv.HoTen,tk.MaTK,tk.TenDangNhap,ISNULL(nv.SoDienThoai,''),ISNULL(nv.Email,''),ISNULL(nv.ChucVu,''),tk.VaiTro,tk.TrangThai FROM dbo.TaiKhoan tk INNER JOIN dbo.NhanVien nv ON nv.MaNV=tk.MaNV WHERE tk.VaiTro IN (N'Nhân viên',N'NhanVien') ORDER BY nv.HoTen")) { QMessageBox::critical(this,"Không tải được nhân viên",q.lastError().text()); return; }
             while(q.next()) {
                 int r=table->rowCount(); table->insertRow(r);
-                const QList<QString> values={q.value(0).toString(),q.value(1).toString(),q.value(3).toString(),q.value(4).toString(),q.value(5).toString(),q.value(6).toString(),q.value(7).toString(),q.value(8).toString()};
-                for(int c=0;c<values.size();++c) { auto *it=new QTableWidgetItem(values[c]); if(c==0) it->setData(Qt::UserRole,q.value(2).toString()); table->setItem(r,c,it); }
+                const QList<QString> values={q.value(0).toString(),q.value(1).toString(),q.value(3).toString(),q.value(4).toString(),q.value(5).toString(),q.value(6).toString(),q.value(7).toString(),q.value(8).toString(),QStringLiteral("••••••••")};
+                for(int c=0;c<values.size();++c) { auto *it=new QTableWidgetItem(values[c]); if(c==0) it->setData(Qt::UserRole,q.value(2).toString()); if(c==8) it->setToolTip("Mật khẩu được lưu dạng hash nên không thể xem lại. Dùng nút Đặt lại mật khẩu để cấp mật khẩu mới."); table->setItem(r,c,it); }
             }
         };
         connect(refresh,&QPushButton::clicked,this,loadEmployees);
+        connect(resetPassword,&QPushButton::clicked,this,[this,selectedAccountId=std::function<QString()>([table](){int r=table->currentRow(); if(r<0||!table->item(r,0)) return QString(); return table->item(r,0)->data(Qt::UserRole).toString();}),loadEmployees](){
+            if(userRole!="Admin"){QMessageBox::warning(this,"Không đủ quyền","Chỉ Admin được đặt lại mật khẩu nhân viên.");return;}
+            const QString id=selectedAccountId();
+            if(id.isEmpty()){QMessageBox::information(this,"Chọn nhân viên","Hãy chọn một dòng nhân viên trước.");return;}
+            bool ok=false; const QString pw=QInputDialog::getText(this,"Đặt lại mật khẩu","Nhập mật khẩu mới (ít nhất 10 ký tự):",QLineEdit::Password,QString(),&ok);
+            if(!ok)return;
+            if(pw.size()<10){QMessageBox::warning(this,"Mật khẩu chưa hợp lệ","Mật khẩu phải có ít nhất 10 ký tự.");return;}
+            if(!DatabaseManager::connect()){QMessageBox::critical(this,"SQL Server","Không kết nối được cơ sở dữ liệu.");return;}
+            QSqlQuery q(DatabaseManager::database()); q.prepare("UPDATE dbo.TaiKhoan SET MatKhau=? WHERE MaTK=? AND VaiTro IN (N'Nhân viên',N'NhanVien')"); q.addBindValue(PasswordUtils::hashPassword(pw)); q.addBindValue(id);
+            if(!q.exec()||q.numRowsAffected()!=1){QMessageBox::critical(this,"Không đặt lại được mật khẩu",q.lastError().text());return;}
+            loadEmployees(); QMessageBox::information(this,"Thành công","Đã đặt lại mật khẩu. Mật khẩu mới không được hiển thị trong danh sách.");
+        });
         connect(filter,&QLineEdit::textChanged,this,[table](const QString &text){for(int r=0;r<table->rowCount();++r){bool match=false;for(int c=0;c<table->columnCount();++c) if(table->item(r,c)&&table->item(r,c)->text().contains(text,Qt::CaseInsensitive)) match=true; table->setRowHidden(r,!match);}});
         connect(createButton,&QPushButton::clicked,this,[=]() {
             const QString name=fullName->text().trimmed(), login=username->text().trimmed(), pw=password->text();
@@ -657,7 +674,7 @@ private:
         // Nếu database chưa có bản ghi, hiển thị thông báo rõ ràng thay vì bảng trống.
         t->setMinimumHeight(300);
         t->verticalHeader()->setDefaultSectionSize(34);
-        t->setMinimumSectionSize(28);
+        t->verticalHeader()->setMinimumSectionSize(28);
         t->setAlternatingRowColors(true);
         t->setShowGrid(true);
         t->setWordWrap(false);
