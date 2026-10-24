@@ -197,6 +197,24 @@ public:
         outer->addWidget(side);
         auto *right = new QWidget; auto *rv = new QVBoxLayout(right); rv->setContentsMargins(0,0,0,0); rv->setSpacing(16);
         auto *top = new QHBoxLayout; auto *search=new QLineEdit; search->setPlaceholderText("⌕   Tìm kiếm món ăn, bàn, khách hàng..."); search->setMinimumHeight(42); top->addWidget(search,1); auto *profile=new QLabel("●   "+user+"   ·   "+(role=="Admin"?QString("Quản trị viên"):QString("Nhân viên"))); profile->setStyleSheet("background:#EAF2E8;border-radius:12px;padding:12px;color:#000000;font-weight:600;"); top->addWidget(profile); auto *logoutButton=new QPushButton("Đăng xuất"); logoutButton->setObjectName("soft"); logoutButton->setCursor(Qt::PointingHandCursor); top->addWidget(logoutButton); connect(logoutButton,&QPushButton::clicked,this,[this]{ if(QMessageBox::question(this,"Đăng xuất","Bạn có chắc chắn muốn đăng xuất khỏi tài khoản này?",QMessageBox::Yes|QMessageBox::No,QMessageBox::No)==QMessageBox::Yes){ hide(); if(onLogout) onLogout(); } }); rv->addLayout(top);
+        // Tim kiem tong tren trang chu: nhap tu khoa va Enter de mo dung phan quan ly.
+        search->setToolTip("Nhập món ăn, bàn, khách hàng, đặt bàn, hóa đơn hoặc nhân viên rồi nhấn Enter.");
+        connect(search, &QLineEdit::returnPressed, this, [this, search]() {
+            const QString term = search->text().trimmed().toCaseFolded();
+            if (term.isEmpty()) return;
+            if (term.contains("mon") || term.contains("món") || term.contains("do uong") || term.contains("đồ uống")) showPage(3);
+            else if (term.contains("ban") || term.contains("bàn") || term.contains("so do") || term.contains("sơ đồ")) showPage(2);
+            else if (term.contains("khach") || term.contains("khách")) showPage(4);
+            else if (term.contains("dat") || term.contains("đặt") || term.contains("booking")) showPage(1);
+            else if (term.contains("nhan vien") || term.contains("nhân viên") || term.contains("staff")) { if (userRole == QStringLiteral("Admin")) showPage(5); }
+            else if (term.contains("hoa don") || term.contains("hóa đơn") || term.contains("doanh thu") || term.contains("revenue")) showPage(6);
+            else if (term.contains("thong ke") || term.contains("thống kê")) showPage(7);
+            else if (term.contains("pos") || term.contains("thanh toan") || term.contains("thanh toán")) showPage(9);
+            else {
+                QMessageBox::information(this, "Tìm kiếm", "Chưa xác định được nhóm thông tin. Thử nhập: món ăn, bàn, khách hàng, đặt bàn, hóa đơn hoặc nhân viên.");
+            }
+            search->clear();
+        });
         pages = new QStackedWidget;
         pages->addWidget(makeDashboard());
         pages->addWidget(makeBookingPage());
@@ -358,7 +376,17 @@ private:
                 areaLayout->setSpacing(8);
 
                 QSqlQuery tableQuery(DatabaseManager::database());
-                tableQuery.prepare("SELECT b.MaBan,b.TenBan,b.SoCho,b.TrangThai,ISNULL(p.Cot,-1),ISNULL(p.Hang,-1) FROM dbo.Ban b LEFT JOIN dbo.BoTriBan p ON p.MaBan=b.MaBan WHERE b.MaKhuVuc=? ORDER BY ISNULL(p.Hang,9999),ISNULL(p.Cot,9999),b.MaBan");
+                tableQuery.prepare("SELECT b.MaBan,b.TenBan,b.SoCho, "
+                    "CASE "
+                    " WHEN b.TrangThai IN (N'Bảo trì',N'Bao tri') THEN N'Bảo trì' "
+                    " WHEN EXISTS (SELECT 1 FROM dbo.DatBan d WHERE d.MaBan=b.MaBan AND d.NgayDat=CAST(GETDATE() AS DATE) AND d.TrangThai IN (N'Đã nhận bàn',N'Da nhan ban')) THEN N'Đang sử dụng' "
+                    " WHEN EXISTS (SELECT 1 FROM dbo.DatBan d WHERE d.MaBan=b.MaBan AND d.NgayDat=CAST(GETDATE() AS DATE) AND d.TrangThai IN (N'Đã đặt',N'Da dat')) THEN N'Đã đặt' "
+                    " WHEN b.TrangThai IN (N'Đang sử dụng',N'Dang su dung') THEN N'Đang sử dụng' "
+                    " WHEN b.TrangThai IN (N'Đã đặt',N'Da dat') THEN N'Đã đặt' "
+                    " ELSE N'Trống' END AS TrangThaiHienThi, "
+                    "ISNULL(p.Cot,-1),ISNULL(p.Hang,-1) "
+                    "FROM dbo.Ban b LEFT JOIN dbo.BoTriBan p ON p.MaBan=b.MaBan "
+                    "WHERE b.MaKhuVuc=? ORDER BY ISNULL(p.Hang,9999),ISNULL(p.Cot,9999),b.MaBan");
                 tableQuery.addBindValue(areaId);
                 int col = 0, row = 0, tableCount = 0;
                 if (tableQuery.exec()) {
@@ -381,10 +409,11 @@ private:
                         const int savedRow = tableQuery.value(5).toInt() >= 0 ? tableQuery.value(5).toInt() : row;
                         areaLayout->addWidget(tableButton, savedRow, savedCol);
                         tableButton->setProperty("tableId", id);
+                        tableButton->setProperty("tableStatus", status);
                         tableButton->setProperty("gridCol", savedCol);
                         tableButton->setProperty("gridRow", savedRow);
                         tableButton->setCursor(Qt::OpenHandCursor);
-                        tableButton->setToolTip("Kéo thả bàn đến vị trí mới để di chuyển. Thả lên bàn khác để đổi chỗ.");
+                        tableButton->setToolTip("Nhấn để đổi trạng thái bàn. Admin: kéo-thả để di chuyển bàn hoặc đổi chỗ.");
                         tableButton->onDrop = [this, areaId, areaPanel, areaLayout, tableButton, id](const QPoint &globalPos) {
                             if (userRole != QStringLiteral("Admin")) {
                                 QMessageBox::information(this, "Chỉ dành cho Admin", "Chỉ Admin mới có thể di chuyển bàn trên sơ đồ.");
@@ -504,59 +533,62 @@ private:
                         if (tableQuery.value(4).toInt() < 0 || tableQuery.value(5).toInt() < 0) {
                             if (++col == 4) { col = 0; ++row; }
                         }
-                        // Admin can edit a table's position directly from the dashboard map.
+                        // Chọn bàn trên sơ đồ để đổi trạng thái trực tiếp. Admin có 4 trạng thái;
+                        // nhân viên chỉ được chọn 3 trạng thái vận hành, không được đặt Bảo trì.
                         connect(tableButton, &QPushButton::clicked, this,
-                                [this, id, name, status, areaName, areaId, tableButton, areaLayout, savedCol, savedRow] {
-                            if (userRole != QStringLiteral("Admin")) {
-                                QMessageBox::information(this, "Thông tin bàn", name + " (" + id + ")\nKhu vực: " + areaName + "\nTrạng thái: " + status);
-                                return;
-                            }
+                                [this, id, name, areaName, tableButton] {
                             QDialog dialog(this);
-                            dialog.setWindowTitle("Chỉnh vị trí bàn — " + name);
-                            dialog.setMinimumWidth(330);
+                            dialog.setWindowTitle("Trạng thái bàn — " + name);
+                            dialog.setMinimumWidth(360);
                             auto *form = new QFormLayout(&dialog);
-                            auto *colEdit = new QSpinBox(&dialog); colEdit->setRange(0, 19); colEdit->setValue(tableButton->property("gridCol").toInt());
-                            auto *rowEdit = new QSpinBox(&dialog); rowEdit->setRange(0, 19); rowEdit->setValue(tableButton->property("gridRow").toInt());
-                            auto *hint = new QLabel("Đổi Cột/Hàng để di chuyển bàn trên sơ đồ.\nCột 0–19, Hàng 0–19.", &dialog);
-                            hint->setWordWrap(true);
                             form->addRow("Bàn", new QLabel(name + " (" + id + ")", &dialog));
                             form->addRow("Khu vực", new QLabel(areaName, &dialog));
-                            form->addRow("Cột", colEdit);
-                            form->addRow("Hàng", rowEdit);
+                            auto *statusBox = new QComboBox(&dialog);
+                            if (userRole == QStringLiteral("Admin")) {
+                                statusBox->addItems({"Trống", "Đã đặt", "Đang sử dụng", "Bảo trì"});
+                            } else {
+                                statusBox->addItems({"Trống", "Đã đặt", "Đang sử dụng"});
+                            }
+                            const QString currentStatus = tableButton->property("tableStatus").toString();
+                            int currentIndex = statusBox->findText(currentStatus);
+                            if (currentIndex >= 0) statusBox->setCurrentIndex(currentIndex);
+                            form->addRow("Trạng thái mới", statusBox);
+                            auto *hint = new QLabel(userRole == QStringLiteral("Admin")
+                                ? "Chọn trạng thái bàn tại đây: Trống, Đã đặt, Đang sử dụng hoặc Bảo trì. Không cần nhập Cột/Hàng khi đổi trạng thái; Admin vẫn kéo-thả bàn để di chuyển."
+                                : "Chọn Trống, Đã đặt hoặc Đang sử dụng ngay trên sơ đồ. Nhân viên không được đặt Bảo trì; Admin vẫn giữ quyền kéo-thả để di chuyển bàn.", &dialog);
+                            hint->setWordWrap(true);
                             form->addRow(hint);
                             auto *buttons = new QHBoxLayout;
-                            auto *save = new QPushButton("Lưu vị trí", &dialog); save->setObjectName("primary");
+                            auto *save = new QPushButton("Lưu trạng thái", &dialog); save->setObjectName("primary");
                             auto *cancel = new QPushButton("Hủy", &dialog); cancel->setObjectName("soft");
                             buttons->addWidget(save); buttons->addWidget(cancel); form->addRow(buttons);
                             QObject::connect(save, &QPushButton::clicked, &dialog, &QDialog::accept);
                             QObject::connect(cancel, &QPushButton::clicked, &dialog, &QDialog::reject);
                             if (dialog.exec() != QDialog::Accepted) return;
-
-                            QSqlDatabase db = DatabaseManager::database();
-                            if (!db.transaction()) { QMessageBox::critical(this, "Lỗi SQL", db.lastError().text()); return; }
-                            QSqlQuery occupied(db);
-                            occupied.prepare("SELECT TOP 1 p.MaBan,b.TenBan FROM dbo.BoTriBan p JOIN dbo.Ban b ON b.MaBan=p.MaBan WHERE b.MaKhuVuc=? AND p.Cot=? AND p.Hang=? AND p.MaBan<>?");
-                            occupied.addBindValue(areaId); occupied.addBindValue(colEdit->value()); occupied.addBindValue(rowEdit->value()); occupied.addBindValue(id);
-                            QString otherId, otherName;
-                            if (!occupied.exec()) { db.rollback(); QMessageBox::critical(this, "Lỗi SQL", occupied.lastError().text()); return; }
-                            if (occupied.next()) { otherId = occupied.value(0).toString(); otherName = occupied.value(1).toString(); }
-                            occupied.finish();
-                            if (!otherId.isEmpty()) {
-                                if (QMessageBox::question(this, "Vị trí đã có bàn", "Ô này đang có " + otherName + ". Bạn muốn đổi chỗ hai bàn không?", QMessageBox::Yes | QMessageBox::No) != QMessageBox::Yes) { db.rollback(); return; }
-                                QSqlQuery swap(db);
-                                swap.prepare("UPDATE dbo.BoTriBan SET Cot=?,Hang=? WHERE MaBan=?");
-                                swap.addBindValue(savedCol); swap.addBindValue(savedRow); swap.addBindValue(otherId);
-                                if (!swap.exec()) { db.rollback(); QMessageBox::critical(this, "Không đổi được vị trí", swap.lastError().text()); return; }
+                            const QString nextStatus = statusBox->currentText();
+                            if (userRole != QStringLiteral("Admin") && nextStatus == QStringLiteral("Bảo trì")) {
+                                QMessageBox::warning(this, "Không đủ quyền", "Chỉ Admin mới được đặt bàn vào trạng thái Bảo trì.");
+                                return;
                             }
+                            if (nextStatus == currentStatus) return;
+                            QSqlDatabase db = DatabaseManager::database();
                             QSqlQuery update(db);
-                            update.prepare("IF EXISTS(SELECT 1 FROM dbo.BoTriBan WHERE MaBan=?) UPDATE dbo.BoTriBan SET Cot=?,Hang=? WHERE MaBan=? ELSE INSERT dbo.BoTriBan(MaBan,Cot,Hang) VALUES(?,?,?)");
-                            update.addBindValue(id); update.addBindValue(colEdit->value()); update.addBindValue(rowEdit->value()); update.addBindValue(id);
-                            update.addBindValue(id); update.addBindValue(colEdit->value()); update.addBindValue(rowEdit->value());
-                            if (!update.exec() || !db.commit()) { db.rollback(); QMessageBox::critical(this, "Không lưu được vị trí", update.lastError().text().isEmpty() ? db.lastError().text() : update.lastError().text()); return; }
-                            // Update the visible map immediately; no need to restart the app.
-                            areaLayout->removeWidget(tableButton);
-                            areaLayout->addWidget(tableButton, rowEdit->value(), colEdit->value());
-                            QMessageBox::information(this, "Đã lưu", "Đã cập nhật vị trí bàn trên sơ đồ.");
+                            update.prepare("UPDATE dbo.Ban SET TrangThai=? WHERE MaBan=?");
+                            update.addBindValue(nextStatus);
+                            update.addBindValue(id);
+                            if (!update.exec() || update.numRowsAffected() == 0) {
+                                QMessageBox::critical(this, "Không cập nhật được trạng thái", update.lastError().text().isEmpty()
+                                    ? "Không tìm thấy bàn cần cập nhật." : update.lastError().text());
+                                return;
+                            }
+                            QString bg = "#BFE2C5";
+                            if (nextStatus == QStringLiteral("Đã đặt")) bg = "#F8E3AF";
+                            else if (nextStatus == QStringLiteral("Đang sử dụng")) bg = "#F3C8C7";
+                            else if (nextStatus == QStringLiteral("Bảo trì")) bg = "#D9D9D6";
+                            tableButton->setStyleSheet(QString("QPushButton{background:%1;border:1px solid #B8D6BD;border-radius:12px;color:#000000;font-weight:600;padding:8px;} QPushButton:hover{border:2px solid #78A985;}").arg(bg));
+                            tableButton->setProperty("tableStatus", nextStatus);
+                            tableButton->setToolTip("Mã: " + id + "\nTrạng thái: " + nextStatus + "\nKhu vực: " + areaName);
+                            QMessageBox::information(this, "Đã cập nhật", "Trạng thái bàn đã được lưu vào SQL Server. Nếu bàn có lượt đặt đang hoạt động, trạng thái lịch đặt vẫn được ưu tiên khi làm mới sơ đồ.");
                         });
                     }
                 }
@@ -666,7 +698,8 @@ private:
             hint->setText(tableBox->count()?QString("Có %1 bàn phù hợp.").arg(tableBox->count()):"Không có bàn phù hợp với ngày, giờ và số người đã chọn.");
         };
         connect(refresh,&QPushButton::clicked,w,loadTables); connect(date,&QDateEdit::dateChanged,w,[loadTables](const QDate&){loadTables();}); connect(time,&QTimeEdit::timeChanged,w,[loadTables](const QTime&){loadTables();}); connect(count,QOverload<int>::of(&QSpinBox::valueChanged),w,[loadTables](int){loadTables();});
-        connect(save,&QPushButton::clicked,w,[this,name,phone,date,time,count,tableBox,note,loadTables,hint](){
+        auto reservationReloader = std::make_shared<std::function<void()>>();
+        connect(save,&QPushButton::clicked,w,[this,name,phone,date,time,count,tableBox,note,loadTables,hint,reservationReloader](){
             QString ten=name->text().trimmed(),sdt=phone->text().trimmed(),maBan=tableBox->currentData().toString();
             if(ten.isEmpty()||sdt.isEmpty()||maBan.isEmpty()){QMessageBox::warning(this,"Thiếu thông tin","Nhập tên, số điện thoại và chọn bàn phù hợp.");return;}
             if(sdt.size()<9||sdt.size()>15){QMessageBox::warning(this,"Số điện thoại không hợp lệ","Số điện thoại phải có từ 9 đến 15 ký tự.");return;}
@@ -682,11 +715,17 @@ private:
             } else {QSqlQuery up(db);up.prepare("UPDATE dbo.KhachHang SET HoTen=? WHERE MaKH=?");up.addBindValue(ten);up.addBindValue(maKH);if(!up.exec()){db.rollback();QMessageBox::critical(this,"Không cập nhật khách hàng",up.lastError().text());return;}}
             QSqlQuery idq(db); if(!idq.exec("SELECT ISNULL(MAX(TRY_CONVERT(int,SUBSTRING(MaDatBan,3,8))),0)+1 FROM dbo.DatBan WHERE MaDatBan LIKE 'DB%'")||!idq.next()){db.rollback();QMessageBox::critical(this,"Lỗi tạo mã đặt bàn",idq.lastError().text());return;}
             QString maDB="DB"+QString::number(idq.value(0).toInt()).rightJustified(6,'0');idq.finish();
-            QSqlQuery ins(db);ins.prepare("INSERT dbo.DatBan(MaDatBan,MaKH,MaBan,NgayDat,GioDat,SoNguoi,TrangThai,GhiChu) VALUES(?,?,?,?,?,?,N'Đã đặt',?)");ins.addBindValue(maDB);ins.addBindValue(maKH);ins.addBindValue(maBan);ins.addBindValue(date->date());ins.addBindValue(time->time());ins.addBindValue(count->value());ins.addBindValue(note->text().trimmed());
+            QString maNV;
+            QSqlQuery employeeQuery(db);
+            employeeQuery.prepare("SELECT MaNV FROM dbo.TaiKhoan WHERE TenDangNhap=? AND TrangThai=N'Hoạt động'");
+            employeeQuery.addBindValue(user);
+            if (employeeQuery.exec() && employeeQuery.next()) maNV = employeeQuery.value(0).toString();
+            employeeQuery.finish();
+            QSqlQuery ins(db);ins.prepare("INSERT dbo.DatBan(MaDatBan,MaKH,MaBan,MaNV,NgayDat,GioDat,SoNguoi,TrangThai,GhiChu) VALUES(?,?,?,?,?,?,?,N'Đã đặt',?)");ins.addBindValue(maDB);ins.addBindValue(maKH);ins.addBindValue(maBan);ins.addBindValue(maNV.isEmpty() ? QVariant() : QVariant(maNV));ins.addBindValue(date->date());ins.addBindValue(time->time());ins.addBindValue(count->value());ins.addBindValue(note->text().trimmed());
             if(!ins.exec()){db.rollback();QMessageBox::critical(this,"Không tạo được đặt bàn",ins.lastError().text());return;}
             if(date->date()==QDate::currentDate()){QSqlQuery up(db);up.prepare("UPDATE dbo.Ban SET TrangThai=N'Đã đặt' WHERE MaBan=? AND TrangThai=N'Trống'");up.addBindValue(maBan);if(!up.exec()){db.rollback();QMessageBox::critical(this,"Không cập nhật trạng thái bàn",up.lastError().text());return;}}
             if(!db.commit()){db.rollback();QMessageBox::critical(this,"Không lưu được đặt bàn",db.lastError().text());return;}
-            QMessageBox::information(this,"Đặt bàn thành công","Đã lưu lượt đặt "+maDB+" vào SQL Server. Khi khách đến, chọn lịch bên dưới và bấm Xác nhận khách đến / Nhận bàn.");name->clear();phone->clear();note->clear();loadTables();
+            QMessageBox::information(this,"Đặt bàn thành công","Đã lưu lượt đặt "+maDB+" vào SQL Server. Lịch đặt bàn đã được cập nhật bên dưới.");name->clear();phone->clear();note->clear();loadTables();if(*reservationReloader)(*reservationReloader)();
         });
         v->addWidget(f);
 
@@ -713,26 +752,42 @@ private:
         reservationTable->verticalHeader()->setVisible(false);
         reservationTable->setMinimumHeight(190);
         reservationLayout->addWidget(reservationTable);
+        auto *reservationEmptyLabel = label("Chưa có lịch đặt bàn trong cơ sở dữ liệu. Hãy tạo đặt bàn ở phía trên hoặc kiểm tra kết nối SQL Server.", "muted");
+        reservationEmptyLabel->setAlignment(Qt::AlignCenter);
+        reservationEmptyLabel->setWordWrap(true);
+        reservationEmptyLabel->setMinimumHeight(42);
+        reservationLayout->addWidget(reservationEmptyLabel);
         v->addWidget(reservationPanel, 1);
 
-        auto loadReservations = [this, reservationTable]() {
+        auto loadReservations = [this, reservationTable, reservationEmptyLabel]() {
             reservationTable->setRowCount(0);
-            if (!DatabaseManager::connect()) {
-                QMessageBox::warning(this, "SQL Server", "Không kết nối được cơ sở dữ liệu.");
+            reservationEmptyLabel->setVisible(false);
+            QString connectionError;
+            if (!DatabaseManager::connect(&connectionError)) {
+                reservationEmptyLabel->setText("Không kết nối được SQL Server: " + connectionError);
+                reservationEmptyLabel->setVisible(true);
                 return;
             }
             QSqlQuery q(DatabaseManager::database());
-            q.prepare("SELECT d.MaDatBan, kh.HoTen, b.TenBan, CONVERT(varchar(10), d.NgayDat, 23), "
+            // Hien thi tat ca lich dat, khong loc mat lich cu/lich tuong lai.
+            // LEFT JOIN de lich dat van hien ra neu du lieu khach/ban bi thieu lien ket.
+            q.prepare("SELECT d.MaDatBan, COALESCE(kh.HoTen, N'(Khách hàng không tồn tại)'), "
+                      "COALESCE(b.TenBan, d.MaBan, N'(Chưa gán bàn)'), "
+                      "CONVERT(varchar(10), d.NgayDat, 23), "
                       "CONVERT(varchar(5), d.GioDat, 108), d.SoNguoi, d.TrangThai "
-                      "FROM dbo.DatBan d JOIN dbo.KhachHang kh ON kh.MaKH=d.MaKH "
-                      "JOIN dbo.Ban b ON b.MaBan=d.MaBan "
-                      "WHERE d.NgayDat >= DATEADD(day,-1,CAST(GETDATE() AS date)) "
-                      "ORDER BY d.NgayDat DESC, d.GioDat DESC, d.MaDatBan DESC");
+                      "FROM dbo.DatBan d "
+                      "LEFT JOIN dbo.KhachHang kh ON kh.MaKH=d.MaKH "
+                      "LEFT JOIN dbo.Ban b ON b.MaBan=d.MaBan "
+                      "ORDER BY CASE WHEN d.NgayDat >= CAST(GETDATE() AS date) THEN 0 ELSE 1 END, "
+                      "d.NgayDat DESC, d.GioDat DESC, d.MaDatBan DESC");
             if (!q.exec()) {
-                QMessageBox::warning(this, "Không tải được lịch đặt", q.lastError().text());
+                reservationEmptyLabel->setText("Không tải được lịch đặt từ SQL Server: " + q.lastError().text());
+                reservationEmptyLabel->setVisible(true);
                 return;
             }
+            int loadedRows = 0;
             while (q.next()) {
+                ++loadedRows;
                 const int row = reservationTable->rowCount();
                 reservationTable->insertRow(row);
                 for (int col = 0; col < 7; ++col) {
@@ -751,7 +806,12 @@ private:
                     }
                 }
             }
+            if (loadedRows == 0) {
+                reservationEmptyLabel->setText("Chưa có lịch đặt bàn nào trong SQL Server. Tạo đặt bàn ở biểu mẫu phía trên, sau đó bấm “Làm mới lịch”.");
+                reservationEmptyLabel->setVisible(true);
+            }
         };
+        *reservationReloader = loadReservations;
         connect(refreshReservations, &QPushButton::clicked, w, loadReservations);
         connect(confirmArrival, &QPushButton::clicked, w, [this, reservationTable, loadReservations]() {
             const int row = reservationTable->currentRow();
@@ -759,8 +819,12 @@ private:
                 QMessageBox::information(this, "Chưa chọn lịch", "Hãy chọn lịch đặt bàn cần xác nhận khách đến.");
                 return;
             }
-            const QString bookingId = reservationTable->item(row, 0)->text();
-            const QString status = reservationTable->item(row, 6)->text();
+            const QString bookingId = reservationTable->item(row, 0)->text().trimmed();
+            const QString status = reservationTable->item(row, 6) ? reservationTable->item(row, 6)->text().trimmed() : QString();
+            if (bookingId.isEmpty() || status.isEmpty()) {
+                QMessageBox::information(this, "Chưa có lịch hợp lệ", "Hãy làm mới lịch hoặc tạo một lượt đặt bàn trước.");
+                return;
+            }
             if (status != QStringLiteral("Đã đặt")) {
                 QMessageBox::information(this, "Không thể xác nhận", "Chỉ lịch đang ở trạng thái 'Đã đặt' mới có thể xác nhận khách đến. Trạng thái hiện tại: " + status);
                 return;
@@ -791,7 +855,7 @@ private:
         auto*f=panel();auto*l=new QVBoxLayout(f);auto*filters=new QHBoxLayout;auto*search=new QLineEdit;search->setPlaceholderText("Tìm mã bàn hoặc tên bàn...");auto*area=new QComboBox;area->addItem("Tất cả khu vực","");auto*refresh=new QPushButton("↻ Làm mới");refresh->setObjectName("soft");auto*add=new QPushButton("＋ Thêm bàn");add->setObjectName("primary");filters->addWidget(search,1);filters->addWidget(area);filters->addWidget(refresh);filters->addWidget(add);l->addLayout(filters);
         auto*t=new QTableWidget(0,5);t->setHorizontalHeaderLabels({"Mã bàn","Tên bàn","Khu vực","Số chỗ","Trạng thái"});t->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);t->setSelectionBehavior(QAbstractItemView::SelectRows);t->setEditTriggers(QAbstractItemView::NoEditTriggers);t->verticalHeader()->setVisible(false);l->addWidget(t,1);
         auto loadAreas=[this,area](){QString old=area->currentData().toString();area->clear();area->addItem("Tất cả khu vực","");QSqlQuery q(DatabaseManager::database());if(q.exec("SELECT MaKhuVuc,TenKhuVuc FROM dbo.KhuVuc ORDER BY TenKhuVuc"))while(q.next())area->addItem(q.value(1).toString(),q.value(0).toString());int i=area->findData(old);if(i>=0)area->setCurrentIndex(i);};
-        auto load=[this,t,area](){t->setRowCount(0);if(!DatabaseManager::connect()){QMessageBox::warning(this,"SQL Server","Không kết nối được cơ sở dữ liệu.");return;}QSqlQuery q(DatabaseManager::database());QString sql="SELECT b.MaBan,b.TenBan,kv.TenKhuVuc,b.SoCho,b.TrangThai FROM dbo.Ban b JOIN dbo.KhuVuc kv ON kv.MaKhuVuc=b.MaKhuVuc";if(!area->currentData().toString().isEmpty())sql+=" WHERE b.MaKhuVuc=?";sql+=" ORDER BY kv.TenKhuVuc,b.MaBan";if(!q.prepare(sql)){QMessageBox::warning(this,"Lỗi SQL",q.lastError().text());return;}if(!area->currentData().toString().isEmpty())q.addBindValue(area->currentData());if(!q.exec()){QMessageBox::warning(this,"Không tải được bàn",q.lastError().text());return;}while(q.next()){int r=t->rowCount();t->insertRow(r);for(int c=0;c<5;++c)t->setItem(r,c,new QTableWidgetItem(q.value(c).toString()));}};
+        auto load=[this,t,area](){t->setRowCount(0);if(!DatabaseManager::connect()){QMessageBox::warning(this,"SQL Server","Không kết nối được cơ sở dữ liệu.");return;}QSqlQuery q(DatabaseManager::database());QString sql="SELECT b.MaBan,b.TenBan,kv.TenKhuVuc,b.SoCho,b.TrangThai FROM dbo.Ban b JOIN dbo.KhuVuc kv ON kv.MaKhuVuc=b.MaKhuVuc";if(!area->currentData().toString().isEmpty())sql+=" WHERE b.MaKhuVuc=?";sql+=" ORDER BY kv.TenKhuVuc,b.MaBan";if(!q.prepare(sql)){QMessageBox::warning(this,"Lỗi SQL",q.lastError().text());return;}if(!area->currentData().toString().isEmpty())q.addBindValue(area->currentData());if(!q.exec()){QMessageBox::warning(this,"Không tải được bàn",q.lastError().text());return;}while(q.next()){int r=t->rowCount();t->insertRow(r);QString status=q.value(4).toString();QColor tint="#FFFFFF";if(status=="Trống")tint=QColor("#F0F8F0");else if(status=="Đã đặt")tint=QColor("#FFF4D6");else if(status=="Đang sử dụng")tint=QColor("#FBE5E5");else if(status=="Bảo trì")tint=QColor("#E9EAEC");for(int c=0;c<5;++c){auto *cell=new QTableWidgetItem(q.value(c).toString());cell->setBackground(tint);t->setItem(r,c,cell);}}};
         connect(refresh,&QPushButton::clicked,w,[loadAreas,load](){loadAreas();load();});connect(area,QOverload<int>::of(&QComboBox::currentIndexChanged),w,[load](int){load();});connect(search,&QLineEdit::textChanged,w,[t](const QString&s){for(int r=0;r<t->rowCount();++r){bool ok=false;for(int c=0;c<2;++c)if(t->item(r,c)&&t->item(r,c)->text().contains(s,Qt::CaseInsensitive))ok=true;t->setRowHidden(r,!ok);}});
         connect(add,&QPushButton::clicked,w,[this,loadAreas,load](){if(!DatabaseManager::connect()){QMessageBox::warning(this,"SQL Server","Không kết nối được cơ sở dữ liệu.");return;}QDialog d(this);d.setWindowTitle("Thêm bàn ăn");QFormLayout form(&d);QLineEdit ma,ten;QSpinBox cho;cho.setRange(1,30);cho.setValue(4);QComboBox kv;QSqlQuery q(DatabaseManager::database());if(!q.exec("SELECT MaKhuVuc,TenKhuVuc FROM dbo.KhuVuc ORDER BY TenKhuVuc")){QMessageBox::warning(this,"Lỗi SQL",q.lastError().text());return;}while(q.next())kv.addItem(q.value(1).toString(),q.value(0).toString());if(kv.count()==0){QMessageBox::warning(this,"Thiếu khu vực","Hãy tạo khu vực trong database trước.");return;}QComboBox st;st.addItems({"Trống","Bảo trì"});form.addRow("Mã bàn",&ma);form.addRow("Tên bàn",&ten);form.addRow("Số chỗ",&cho);form.addRow("Khu vực",&kv);form.addRow("Trạng thái",&st);QPushButton save("Lưu"),cancel("Hủy");QHBoxLayout buttons;buttons.addWidget(&save);buttons.addWidget(&cancel);form.addRow(&buttons);QObject::connect(&cancel,&QPushButton::clicked,&d,&QDialog::reject);QObject::connect(&save,&QPushButton::clicked,&d,&QDialog::accept);if(d.exec()!=QDialog::Accepted)return;QString id=ma.text().trimmed(),nm=ten.text().trimmed();if(id.isEmpty()||nm.isEmpty()){QMessageBox::warning(this,"Thiếu thông tin","Nhập mã và tên bàn.");return;}QSqlQuery ins(DatabaseManager::database());ins.prepare("INSERT dbo.Ban(MaBan,TenBan,SoCho,TrangThai,MaKhuVuc) VALUES(?,?,?,?,?)");ins.addBindValue(id);ins.addBindValue(nm);ins.addBindValue(cho.value());ins.addBindValue(st.currentText());ins.addBindValue(kv.currentData());if(!ins.exec()){QMessageBox::critical(this,"Không thêm được bàn",ins.lastError().text());return;}loadAreas();load();QMessageBox::information(this,"Thành công","Đã thêm bàn vào SQL Server.");});
         v->addWidget(f,1);loadAreas();load();return w;
@@ -1246,10 +1310,27 @@ private:
     QWidget *makeGenericPage(const QString &name){
         auto *w=new QWidget; auto *v=new QVBoxLayout(w);
         auto *heading=new QHBoxLayout; heading->addWidget(label(name,"pageTitle")); heading->addStretch();
+        QComboBox *currencyBox = nullptr;
+        QDoubleSpinBox *exchangeRate = nullptr;
+        if (name == "Thống kê") {
+            heading->addWidget(label("Tiền tệ:"));
+            currencyBox = new QComboBox; currencyBox->addItems({"VND", "USD"}); currencyBox->setMinimumWidth(90);
+            heading->addWidget(currencyBox);
+            heading->addWidget(label("1 USD ="));
+            exchangeRate = new QDoubleSpinBox; exchangeRate->setRange(1.0, 1000000.0); exchangeRate->setDecimals(0); exchangeRate->setValue(25000); exchangeRate->setSuffix(" VND"); exchangeRate->setMinimumWidth(135);
+            heading->addWidget(exchangeRate);
+        }
         auto *refresh=new QPushButton("↻  Làm mới"); refresh->setObjectName("soft"); heading->addWidget(refresh); v->addLayout(heading);
         v->addWidget(label("Dữ liệu được tải trực tiếp từ SQL Server. Chọn một dòng để xem thông tin chi tiết.","muted"));
         auto *f=panel(); auto *l=new QVBoxLayout(f); auto *search=new QLineEdit; search->setPlaceholderText("Tìm theo mã, tên hoặc trạng thái..."); l->addWidget(search);
-        auto *t=new QTableWidget(0,4); t->setHorizontalHeaderLabels({"Mã","Tên / Thông tin","Giá trị / Liên hệ","Trạng thái"}); t->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); t->setSelectionBehavior(QAbstractItemView::SelectRows); t->setEditTriggers(QAbstractItemView::NoEditTriggers); t->verticalHeader()->setVisible(false); l->addWidget(t,1);
+        auto *foodActions = new QHBoxLayout;
+        auto *addFood = new QPushButton("＋  Thêm món ăn"); addFood->setObjectName("primary");
+        auto *editFood = new QPushButton("✎  Sửa món"); editFood->setObjectName("soft");
+        auto *deleteFood = new QPushButton("−  Ngừng bán / xóa"); deleteFood->setObjectName("soft");
+        foodActions->addWidget(addFood); foodActions->addWidget(editFood); foodActions->addWidget(deleteFood); foodActions->addStretch();
+        if (name == "Món ăn") l->addLayout(foodActions);
+        else { addFood->hide(); editFood->hide(); deleteFood->hide(); }
+        auto *t=new QTableWidget(0,4); t->setHorizontalHeaderLabels({"Mã","Tên / Thông tin","Giá trị / Liên hệ","Trạng thái"}); t->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); t->setSelectionBehavior(QAbstractItemView::SelectRows); t->setSelectionMode(QAbstractItemView::SingleSelection); t->setEditTriggers(QAbstractItemView::NoEditTriggers); t->verticalHeader()->setVisible(false); l->addWidget(t,1);
         auto *detail=new QLabel("Chưa chọn bản ghi."); detail->setObjectName("muted"); detail->setWordWrap(true); l->addWidget(detail);
         // Luôn hiển thị bảng và tải dữ liệu ngay khi trang được tạo/mở.
         // Nếu database chưa có bản ghi, hiển thị thông báo rõ ràng thay vì bảng trống.
@@ -1260,7 +1341,7 @@ private:
         t->setShowGrid(true);
         t->setWordWrap(false);
         t->setHorizontalScrollMode(QAbstractItemView::ScrollPerPixel);
-        auto load=[this,name,t,detail,w](){
+        auto load=[this,name,t,detail,w,currencyBox,exchangeRate](){
             t->setRowCount(0);
             detail->setText("Đang tải dữ liệu...");
             if(!DatabaseManager::connect()){
@@ -1271,10 +1352,10 @@ private:
                 return;
             }
             QString sql;
-            if(name=="Món ăn") sql="SELECT TOP 500 MaMon,TenMon,CONVERT(nvarchar(50),CAST(DonGia AS money),1),TrangThai FROM dbo.MonAn ORDER BY TenMon";
+            if(name=="Món ăn") sql="SELECT TOP 500 MaMon,TenMon,CONVERT(nvarchar(50),CAST(DonGia AS decimal(18,0))),TrangThai FROM dbo.MonAn ORDER BY TenMon";
             else if(name=="Khách hàng") sql="SELECT TOP 500 MaKH,HoTen,SoDienThoai,ISNULL(Email,N'') FROM dbo.KhachHang ORDER BY NgayTao DESC";
-            else if(name=="Hóa đơn") sql="SELECT TOP 500 MaHD,MaDatBan,CONVERT(nvarchar(50),CAST(ThanhTien AS money),1),TrangThai FROM dbo.HoaDon ORDER BY NgayLap DESC";
-            else if(name=="Thống kê") sql="SELECT N'Tổng lượt đặt',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Tất cả' FROM dbo.DatBan UNION ALL SELECT N'Đang đặt',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Đã đặt' FROM dbo.DatBan WHERE TrangThai=N'Đã đặt' UNION ALL SELECT N'Đã nhận bàn',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Đã nhận bàn' FROM dbo.DatBan WHERE TrangThai=N'Đã nhận bàn' UNION ALL SELECT N'Đã hủy',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Đã hủy' FROM dbo.DatBan WHERE TrangThai=N'Đã hủy' UNION ALL SELECT N'Không đến',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Không đến' FROM dbo.DatBan WHERE TrangThai=N'Không đến' UNION ALL SELECT N'Doanh thu đã thanh toán',CONVERT(nvarchar(50),CAST(ISNULL(SUM(ThanhTien),0) AS money),1),N'VNĐ',N'Đã thanh toán' FROM dbo.HoaDon WHERE TrangThai=N'Đã thanh toán'";
+            else if(name=="Hóa đơn") sql="SELECT TOP 500 MaHD,MaDatBan,CONVERT(nvarchar(50),CAST(ThanhTien AS decimal(18,0))),TrangThai FROM dbo.HoaDon ORDER BY NgayLap DESC";
+            else if(name=="Thống kê") sql="SELECT N'Tổng lượt đặt',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Tất cả' FROM dbo.DatBan UNION ALL SELECT N'Đang đặt',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Đã đặt' FROM dbo.DatBan WHERE TrangThai=N'Đã đặt' UNION ALL SELECT N'Đã nhận bàn',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Đã nhận bàn' FROM dbo.DatBan WHERE TrangThai=N'Đã nhận bàn' UNION ALL SELECT N'Đã hủy',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Đã hủy' FROM dbo.DatBan WHERE TrangThai=N'Đã hủy' UNION ALL SELECT N'Không đến',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Không đến' FROM dbo.DatBan WHERE TrangThai=N'Không đến' UNION ALL SELECT N'Doanh thu đã thanh toán',CONVERT(nvarchar(50),CAST(ISNULL(SUM(ThanhTien),0) AS decimal(18,0))),N'VNĐ',N'Đã thanh toán' FROM dbo.HoaDon WHERE TrangThai=N'Đã thanh toán'";
             else sql="SELECT TOP 500 MaDatBan,MaKH,MaBan,TrangThai FROM dbo.DatBan ORDER BY NgayDat DESC,GioDat DESC";
             QSqlQuery q(DatabaseManager::database());
             if(!q.exec(sql)){
@@ -1287,7 +1368,23 @@ private:
             while(q.next()){
                 int r=t->rowCount(); t->insertRow(r);
                 for(int c=0;c<4;++c) {
-                    auto *item=new QTableWidgetItem(q.value(c).toString());
+                    QString cellText = q.value(c).toString();
+                    const QString rowName = q.value(0).toString();
+                    if ((name == "Món ăn" && c == 2) || (name == "Hóa đơn" && c == 2)) {
+                        bool ok=false; double amount=cellText.toDouble(&ok);
+                        if(ok) cellText = QLocale(QLocale::Vietnamese).toString(amount, 'f', 0) + " VND";
+                    }
+                    if (name == "Thống kê" && rowName == "Doanh thu đã thanh toán" && c == 1) {
+                        bool ok=false; double amount=cellText.toDouble(&ok);
+                        const bool usd = currencyBox && currencyBox->currentText() == "USD";
+                        if(ok) {
+                            if(usd && exchangeRate && exchangeRate->value() > 0) amount /= exchangeRate->value();
+                            cellText = QLocale(usd ? QLocale(QLocale::English, QLocale::UnitedStates) : QLocale(QLocale::Vietnamese))
+                                           .toString(amount, 'f', usd ? 2 : 0)
+                                       + (usd ? " USD" : " VND");
+                        }
+                    }
+                    auto *item=new QTableWidgetItem(cellText);
                     item->setToolTip(item->text());
                     t->setItem(r,c,item);
                 }
@@ -1301,7 +1398,55 @@ private:
                 detail->setText(QString("Đã tải %1 bản ghi từ SQL Server. Chọn một dòng để xem chi tiết.").arg(t->rowCount()));
             }
         };
+        if (name == "Món ăn") {
+            auto openFoodDialog = [this, w](const QString &title, const QString &code, const QString &foodName, const QString &category, double price, const QString &unit, const QString &description, const QString &status, bool codeReadOnly, QString *outCode, QString *outName, QString *outCategory, double *outPrice, QString *outUnit, QString *outDescription, QString *outStatus) -> bool {
+                QDialog dlg(w); dlg.setWindowTitle(title); dlg.resize(460, 420);
+                auto *form = new QFormLayout(&dlg);
+                auto *codeEdit = new QLineEdit(code); codeEdit->setPlaceholderText("Ví dụ: M010"); codeEdit->setReadOnly(codeReadOnly);
+                auto *nameEdit = new QLineEdit(foodName); nameEdit->setPlaceholderText("Tên món ăn");
+                auto *categoryEdit = new QLineEdit(category); categoryEdit->setPlaceholderText("Ví dụ: Món chính, Đồ uống");
+                auto *priceEdit = new QDoubleSpinBox; priceEdit->setRange(0.01, 1000000000.0); priceEdit->setDecimals(2); priceEdit->setSingleStep(5000); priceEdit->setSuffix(" đ"); priceEdit->setValue(price > 0 ? price : 10000);
+                auto *unitEdit = new QLineEdit(unit.isEmpty() ? "Phần" : unit);
+                auto *descEdit = new QTextEdit; descEdit->setPlainText(description); descEdit->setMaximumHeight(75);
+                auto *statusEdit = new QComboBox; statusEdit->addItems({"Đang bán", "Hết món", "Ngừng bán"}); int ix=statusEdit->findText(status); statusEdit->setCurrentIndex(ix >= 0 ? ix : 0);
+                form->addRow("Mã món *", codeEdit); form->addRow("Tên món *", nameEdit); form->addRow("Loại món", categoryEdit); form->addRow("Đơn giá *", priceEdit); form->addRow("Đơn vị tính", unitEdit); form->addRow("Mô tả", descEdit); form->addRow("Trạng thái", statusEdit);
+                auto *buttons = new QHBoxLayout; auto *save = new QPushButton("Lưu"); save->setObjectName("primary"); auto *cancel = new QPushButton("Hủy"); cancel->setObjectName("soft"); buttons->addStretch(); buttons->addWidget(save); buttons->addWidget(cancel); form->addRow(buttons);
+                QObject::connect(save, &QPushButton::clicked, &dlg, [&dlg,codeEdit,nameEdit](){ if(codeEdit->text().trimmed().isEmpty() || nameEdit->text().trimmed().isEmpty()){ QMessageBox::warning(&dlg,"Thiếu thông tin","Mã món và tên món không được để trống."); return; } dlg.accept(); });
+                QObject::connect(cancel, &QPushButton::clicked, &dlg, &QDialog::reject);
+                if (dlg.exec() != QDialog::Accepted) return false;
+                *outCode=codeEdit->text().trimmed(); *outName=nameEdit->text().trimmed(); *outCategory=categoryEdit->text().trimmed(); *outPrice=priceEdit->value(); *outUnit=unitEdit->text().trimmed(); *outDescription=descEdit->toPlainText().trimmed(); *outStatus=statusEdit->currentText(); return true;
+            };
+            connect(addFood, &QPushButton::clicked, w, [this,w,load,openFoodDialog]() mutable {
+                QString code,nm,cat,unit,desc,status; double price=0;
+                if(!openFoodDialog("Thêm món ăn", "", "", "", 10000, "Phần", "", "Đang bán", false, &code,&nm,&cat,&price,&unit,&desc,&status)) return;
+                QSqlQuery q(DatabaseManager::database()); q.prepare("INSERT INTO dbo.MonAn (MaMon,TenMon,LoaiMon,DonGia,DonViTinh,MoTa,TrangThai) VALUES (?,?,?,?,?,?,?)");
+                q.addBindValue(code); q.addBindValue(nm); q.addBindValue(cat.isEmpty()?QVariant():QVariant(cat)); q.addBindValue(price); q.addBindValue(unit.isEmpty()?QVariant():QVariant(unit)); q.addBindValue(desc.isEmpty()?QVariant():QVariant(desc)); q.addBindValue(status);
+                if(!q.exec()){ QMessageBox::critical(w,"Không thêm được món",q.lastError().text()); return; }
+                load(); QMessageBox::information(w,"Thành công","Đã thêm món ăn vào SQL Server.");
+            });
+            connect(editFood, &QPushButton::clicked, w, [this,w,t,load,openFoodDialog]() mutable {
+                int r=t->currentRow(); if(r<0 || !t->item(r,0)){ QMessageBox::information(w,"Chưa chọn món","Hãy chọn món ăn cần sửa."); return; }
+                QString code=t->item(r,0)->text(); QSqlQuery read(DatabaseManager::database()); read.prepare("SELECT TenMon,ISNULL(LoaiMon,N''),DonGia,ISNULL(DonViTinh,N''),ISNULL(MoTa,N''),TrangThai FROM dbo.MonAn WHERE MaMon=?"); read.addBindValue(code);
+                if(!read.exec() || !read.next()){ QMessageBox::critical(w,"Lỗi","Không đọc được món ăn đã chọn: "+read.lastError().text()); return; }
+                QString nm0=read.value(0).toString(),cat0=read.value(1).toString(),unit0=read.value(3).toString(),desc0=read.value(4).toString(),status0=read.value(5).toString(); double price0=read.value(2).toDouble();
+                QString newCode,nm,cat,unit,desc,status; double price=0;
+                if(!openFoodDialog("Sửa món ăn",code,nm0,cat0,price0,unit0,desc0,status0,true,&newCode,&nm,&cat,&price,&unit,&desc,&status)) return;
+                QSqlQuery q(DatabaseManager::database()); q.prepare("UPDATE dbo.MonAn SET TenMon=?,LoaiMon=?,DonGia=?,DonViTinh=?,MoTa=?,TrangThai=? WHERE MaMon=?"); q.addBindValue(nm); q.addBindValue(cat.isEmpty()?QVariant():QVariant(cat)); q.addBindValue(price); q.addBindValue(unit.isEmpty()?QVariant():QVariant(unit)); q.addBindValue(desc.isEmpty()?QVariant():QVariant(desc)); q.addBindValue(status); q.addBindValue(code);
+                if(!q.exec()){ QMessageBox::critical(w,"Không sửa được món",q.lastError().text()); return; } load(); QMessageBox::information(w,"Thành công","Đã cập nhật món ăn.");
+            });
+            connect(deleteFood, &QPushButton::clicked, w, [this,w,t,load](){
+                int r=t->currentRow(); if(r<0 || !t->item(r,0)){ QMessageBox::information(w,"Chưa chọn món","Hãy chọn món cần ngừng bán."); return; }
+                QString code=t->item(r,0)->text(), nm=t->item(r,1)->text();
+                if(QMessageBox::question(w,"Ngừng bán món",QString("Ngừng bán món '%1'? Món sẽ được giữ lại để bảo toàn lịch sử hóa đơn.").arg(nm),QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes) return;
+                QSqlQuery q(DatabaseManager::database()); q.prepare("UPDATE dbo.MonAn SET TrangThai=N'Ngừng bán' WHERE MaMon=?"); q.addBindValue(code);
+                if(!q.exec()){ QMessageBox::critical(w,"Không cập nhật được",q.lastError().text()); return; } load(); QMessageBox::information(w,"Thành công","Món đã chuyển sang trạng thái Ngừng bán.");
+            });
+        }
         connect(refresh,&QPushButton::clicked,w,load);
+        if (name == "Thống kê" && currencyBox && exchangeRate) {
+            connect(currencyBox, QOverload<int>::of(&QComboBox::currentIndexChanged), w, [load](int){ load(); });
+            connect(exchangeRate, QOverload<double>::of(&QDoubleSpinBox::valueChanged), w, [load](double){ load(); });
+        }
         connect(search,&QLineEdit::textChanged,w,[t](const QString &text){for(int r=0;r<t->rowCount();++r){bool found=false;for(int c=0;c<t->columnCount();++c)if(t->item(r,c)&&t->item(r,c)->text().contains(text,Qt::CaseInsensitive)){found=true;break;}t->setRowHidden(r,!found);}});
         connect(t,&QTableWidget::itemSelectionChanged,w,[t,detail,name](){int r=t->currentRow();if(r<0)return;QStringList parts;for(int c=0;c<t->columnCount();++c)if(t->item(r,c))parts<<t->horizontalHeaderItem(c)->text()+": "+t->item(r,c)->text();detail->setText(name+" — "+parts.join("  |  "));});
         v->addWidget(f,1); load(); return w;
