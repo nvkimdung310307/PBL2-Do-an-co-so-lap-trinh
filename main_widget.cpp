@@ -35,6 +35,7 @@
 #include <QSpinBox>
 #include <QDoubleSpinBox>
 #include <QScrollArea>
+#include <QSizePolicy>
 #include <QSqlDatabase>
 #include <QDateEdit>
 #include <QSqlQuery>
@@ -43,6 +44,11 @@
 #include <QObject>
 #include <QSettings>
 #include <QDir>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QFile>
+#include <QPixmap>
+#include <QIcon>
 #include <memory>
 #include <functional>
 #include <utility>
@@ -127,10 +133,10 @@ QCalendarWidget QMenu { background: #FFFFFF; color: #17251B; }
 QScrollArea { background: #FFFFFF; border: 0; }
 QScrollArea QWidget#qt_scrollarea_viewport { background: #FFFFFF; }
 QToolTip { background: #F8FCF7; color: #17251B; border: 1px solid #D4E4D5; }
-QTableWidget { background: #FFFFFF; alternate-background-color: #F5FAF4; border: 1px solid #E3EDE0; gridline-color: #E3EDE0; border-radius: 12px; color: #000000; selection-background-color: #D9EED9; selection-color: #000000; }
-QHeaderView::section { background: #EAF4E8; color: #000000; border: 0; border-bottom: 1px solid #DCE9D9; padding: 11px; font-weight: 600; }
-QTableWidget::item { padding: 8px; color: #000000; background-color: transparent; }
-QTableWidget::item:hover { background: #F0F8EF; }
+QTableWidget { background: #FFFFFF; alternate-background-color: #EDF6ED; border: 1px solid #E3EDE0; gridline-color: #E3EDE0; border-radius: 12px; color: #000000; selection-background-color: #D9EED9; selection-color: #000000; }
+QHeaderView::section { background: #DDEEDD; color: #000000; border: 0; border-bottom: 1px solid #DCE9D9; padding: 11px; font-weight: 600; }
+QTableWidget::item { padding: 8px; color: #000000; }
+QTableWidget::item:hover { background: #F5F9FF; }
 QLabel#pill { background: #E5F3E7; color: #000000; border-radius: 9px; padding: 5px 9px; }
 )";
 
@@ -156,7 +162,7 @@ public:
         QString restaurantCode = restaurantSettings.value("code").toString().trimmed();
         restaurantSettings.endGroup();
         if (restaurantName.isEmpty()) restaurantName = "Chưa thiết lập nhà hàng";
-        auto *brandLabel = label("♧  " + restaurantName, "brand");
+        auto *brandLabel = label("😊  " + restaurantName, "brand");
         brandLabel->setWordWrap(true);
         brandLabel->setToolTip(restaurantName);
         sl->addWidget(brandLabel);
@@ -169,14 +175,14 @@ public:
         // Daily operations first, administration/configuration at the bottom.
         struct MenuEntry { int page; const char *title; };
         const MenuEntry adminMenu[] = {
-            {0, "⌂   Tổng quan"}, {1, "▦   Đặt bàn"}, {2, "▤   Quản lý bàn"},
-            {4, "♧   Khách hàng"}, {3, "♨   Món ăn"}, {6, "▣   Hóa đơn"},
-            {7, "▥   Thống kê"}, {5, "♙   Nhân viên & tài khoản"},
-            {10, "▦   Thiết kế sơ đồ bàn"}, {8, "⚙   Tài khoản & nhà hàng"}
+            {0, "🏠   Trang chủ"}, {1, "📅   Đặt bàn"}, {2, "🪑   Quản lý bàn"},
+            {4, "😊   Khách hàng"}, {3, "🍳   Món ăn"}, {6, "🧾   Hóa đơn"},
+            {7, "📊   Thống kê"}, {5, "🧑‍🍳   Nhân viên & tài khoản"},
+            {10, "🗺️   Thiết kế sơ đồ bàn"}, {8, "⚙️   Tài khoản & nhà hàng"}
         };
         const MenuEntry staffMenu[] = {
-            {0, "⌂   Tổng quan"}, {1, "▦   Đặt bàn"}, {9, "▣   POS NHÂN VIÊN"},
-            {2, "▤   Quản lý bàn"}, {4, "♧   Khách hàng"}, {3, "♨   Món ăn"}, {6, "▣   Hóa đơn"}
+            {0, "🏡   Tổng quan"}, {1, "📅   Đặt bàn"}, {9, "📠   POS NHÂN VIÊN"},
+            {2, "🪑   Quản lý bàn"}, {4, "😊   Khách hàng"}, {3, "🍳   Món ăn"}, {6, "🧾   Hóa đơn"}
         };
         navButtons.fill(nullptr, 11);
         auto addMenuEntry = [this, sl](int page, const QString &title) {
@@ -244,37 +250,83 @@ private:
         }
     }
     QWidget *makeDashboard() {
-        auto *w=new QWidget; auto *v=new QVBoxLayout(w); v->setContentsMargins(0,0,0,0); v->setSpacing(12);
+        auto *w=new QWidget; w->setObjectName("dashboardPage"); w->setStyleSheet("QWidget#dashboardPage{background:#F5F0E4;color:#202820;}"); auto *v=new QVBoxLayout(w); v->setContentsMargins(0,0,0,0); v->setSpacing(8);
         auto *heading=new QHBoxLayout; auto *ht=new QVBoxLayout;
         ht->addWidget(label("Chào mừng trở lại, "+user+"!", "pageTitle"));
         ht->addWidget(label("Cùng quản lý nhà hàng hiệu quả hơn hôm nay  ✿", "muted"));
         heading->addLayout(ht); heading->addStretch();
-        auto *date=label("▣   "+QDate::currentDate().toString("dddd, dd/MM/yyyy"));
-        date->setStyleSheet("background:white;border:1px solid #E5ECE2;border-radius:11px;padding:12px;"); heading->addWidget(date); v->addLayout(heading);
+        auto *dashboardCurrency = new QComboBox;
+        dashboardCurrency->addItems({"VND", "USD", "EUR", "JPY", "KRW"});
+        dashboardCurrency->setMinimumWidth(88);
+        auto *dashboardRate = new QDoubleSpinBox;
+        dashboardRate->setRange(0.0001, 100000000.0); dashboardRate->setDecimals(0);
+        dashboardRate->setValue(1.0); dashboardRate->setMinimumWidth(125); dashboardRate->setMaximumWidth(155);
+        auto currencyRateFor = [](const QString &currency) {
+            if (currency == "USD") return 25000.0;
+            if (currency == "EUR") return 27000.0;
+            if (currency == "JPY") return 170.0;
+            if (currency == "KRW") return 18.0;
+            return 1.0;
+        };
+        auto *currencyControls = new QHBoxLayout;
+        currencyControls->setContentsMargins(0,0,0,0);
+        currencyControls->addWidget(label("💱 Tiền tệ:")); currencyControls->addWidget(dashboardCurrency);
+        currencyControls->addWidget(label("1 "+dashboardCurrency->currentText()+" =")); currencyControls->addWidget(dashboardRate);
+        auto *currencyUnit = qobject_cast<QLabel*>(currencyControls->itemAt(2)->widget());
+        dashboardRate->setSuffix(" VND");
+        dashboardRate->setValue(currencyRateFor(dashboardCurrency->currentText()));
+        currencyControls->setSpacing(5);
+        connect(dashboardCurrency, &QComboBox::currentTextChanged, this, [dashboardRate,currencyUnit,currencyRateFor](const QString &currency) {
+            if (currencyUnit) currencyUnit->setText("1 "+currency+" =");
+            dashboardRate->setValue(currencyRateFor(currency));
+        });
+        auto *date=label("📅  "+QDate::currentDate().toString("dddd, dd/MM/yyyy"));
+        date->setStyleSheet("background:white;border:1px solid #E5ECE2;border-radius:10px;padding:8px 10px;");
+        heading->addLayout(currencyControls);
+        heading->addWidget(date);
+        v->addLayout(heading);
 
-        auto *stats=new QGridLayout; stats->setSpacing(12);
-        const QStringList titles={"Tổng bàn","Khách hàng hôm nay","Doanh thu hôm nay","Món ăn phổ biến"};
-        QStringList vals={"0","0","0đ","0"};
-        QStringList details={"Chưa có dữ liệu bàn","Khách đặt hôm nay","Doanh thu đã thanh toán hôm nay","Món đang bán"};
+        auto *stats=new QGridLayout; stats->setSpacing(8);
+        const QStringList titles={"Tổng bàn","Khách đặt hôm nay","Doanh thu hôm nay","Món đang bán"};
+        QStringList vals={"0","0","0 VND","0"};
+        double dashboardRevenueVnd = 0.0;
+        QStringList details={"","","",""};
         if (DatabaseManager::isOpen()) {
             QSqlQuery q(DatabaseManager::database());
             if (q.exec("SELECT COUNT(*) FROM dbo.Ban") && q.next()) vals[0]=q.value(0).toString();
             if (q.exec("SELECT COUNT(DISTINCT db.MaKH) FROM dbo.DatBan db WHERE db.NgayDat=CAST(GETDATE() AS DATE) AND db.TrangThai IN (N'Đã đặt',N'Đã nhận bàn')") && q.next()) vals[1]=q.value(0).toString();
-            if (q.exec("SELECT COALESCE(SUM(ThanhTien),0) FROM dbo.HoaDon WHERE CAST(NgayLap AS DATE)=CAST(GETDATE() AS DATE) AND TrangThai=N'Đã thanh toán'") && q.next()) vals[2]=QLocale(QLocale::Vietnamese).toString(q.value(0).toDouble(),'f',0)+"đ";
+            if (q.exec("SELECT COALESCE(SUM(ThanhTien),0) FROM dbo.HoaDon WHERE NgayLap >= CONVERT(date,GETDATE()) AND NgayLap < DATEADD(day,1,CONVERT(date,GETDATE())) AND TrangThai IN (N'Đã thanh toán',N'Da thanh toan')") && q.next()) { dashboardRevenueVnd=q.value(0).toDouble(); vals[2]=QLocale(QLocale::Vietnamese).toString(dashboardRevenueVnd,'f',0)+" VND"; }
             if (q.exec("SELECT COUNT(*) FROM dbo.MonAn WHERE TrangThai=N'Đang bán'") && q.next()) vals[3]=q.value(0).toString();
         }
-        const QStringList icons={"♧","♙","＄","♨"};
+        const QStringList icons={"😊","♙","＄","🍳"};
         const QStringList colors={"#E4F2E5","#FBEBDD","#FFF3D7","#F9E5E8"};
         for(int i=0;i<4;++i){
-            auto*f=new QFrame; f->setObjectName("stat"); shadow(f); auto*row=new QHBoxLayout(f);
-            auto*ic=label(icons[i]); ic->setAlignment(Qt::AlignCenter); ic->setFixedSize(58,58);
-            ic->setStyleSheet(QString("background:%1;border-radius:29px;color:#000000;font-size:23px;").arg(colors[i]));
-            auto*col=new QVBoxLayout; col->addWidget(label(titles[i],"statTitle")); col->addWidget(label(vals[i],"statValue")); col->addWidget(label(details[i],"muted"));
+            auto*f=new QFrame; f->setObjectName("stat"); f->setMinimumHeight(58); f->setMaximumHeight(64); shadow(f); auto*row=new QHBoxLayout(f); row->setContentsMargins(8,5,8,5); row->setSpacing(7);
+            auto*ic=label(icons[i]); ic->setAlignment(Qt::AlignCenter); ic->setFixedSize(34,34);
+            ic->setStyleSheet(QString("background:%1;border-radius:21px;color:#000000;font-size:19px;").arg(colors[i]));
+            auto*col=new QVBoxLayout; col->addWidget(label(titles[i],"statTitle"));
+            auto *valueLabel=label(vals[i],"statValue");
+            if (i == 2) valueLabel->setToolTip("Tổng tiền các hóa đơn đã thanh toán trong ngày hôm nay. Nhấn mục Thống kê để xem báo cáo chi tiết.");
+            if (i == 2) {
+                valueLabel->setObjectName("dashboardRevenueValue");
+                connect(dashboardCurrency, &QComboBox::currentTextChanged, valueLabel, [valueLabel,dashboardRevenueVnd,dashboardRate](const QString &currency) {
+                    double amount = dashboardRevenueVnd / qMax(0.0001, dashboardRate->value());
+                    const int decimals = currency == "VND" ? 0 : 2;
+                    const QLocale locale = currency == "VND" ? QLocale(QLocale::Vietnamese) : QLocale(QLocale::English, QLocale::UnitedStates);
+                    valueLabel->setText(locale.toString(amount, 'f', decimals)+" "+currency);
+                });
+                connect(dashboardRate, QOverload<double>::of(&QDoubleSpinBox::valueChanged), valueLabel, [valueLabel,dashboardCurrency,dashboardRevenueVnd](double rate) {
+                    double amount = dashboardRevenueVnd / qMax(0.0001, rate);
+                    const QString currency = dashboardCurrency->currentText();
+                    valueLabel->setText((currency == "VND" ? QLocale(QLocale::Vietnamese) : QLocale(QLocale::English, QLocale::UnitedStates)).toString(amount, 'f', currency == "VND" ? 0 : 2)+" "+currency);
+                });
+            }
+            col->addWidget(valueLabel);
             row->addWidget(ic); row->addLayout(col,1); stats->addWidget(f,0,i);
         }
         v->addLayout(stats);
 
-        auto *content=new QHBoxLayout; content->setSpacing(12);
+        auto *content=new QHBoxLayout; content->setSpacing(12); content->setContentsMargins(0,0,0,0);
         auto *left=new QWidget; auto *leftCol=new QVBoxLayout(left); leftCol->setContentsMargins(0,0,0,0); leftCol->setSpacing(12);
         auto *map=panel(); shadow(map); auto*mv=new QVBoxLayout(map);
         auto*mh=new QHBoxLayout; mh->addWidget(label("▦  Sơ đồ bàn", "pageTitle")); mh->addStretch();
@@ -312,7 +364,7 @@ private:
         auto *tabGroup = new QButtonGroup(w);
         tabGroup->setExclusive(true);
         auto *areaStack = new QStackedWidget;
-        areaStack->setMinimumHeight(190);
+        areaStack->setMinimumHeight(220);
         areaStack->setStyleSheet("QStackedWidget{background:transparent;border:0;}");
         auto *areaScroll = new QScrollArea;
         areaScroll->setWidgetResizable(true);
@@ -630,29 +682,41 @@ private:
         leftCol->addWidget(map,3);
 
         auto *foodPanel=panel(); auto*foodV=new QVBoxLayout(foodPanel); auto*foodHead=new QHBoxLayout;
-        foodHead->addWidget(label("♨  Món ăn phổ biến hôm nay", "pageTitle")); foodHead->addStretch(); auto *allFoods=new QPushButton("Xem tất cả  ›"); allFoods->setObjectName("soft"); foodHead->addWidget(allFoods); connect(allFoods,&QPushButton::clicked,this,[this]{showPage(3);}); foodV->addLayout(foodHead);
+        foodHead->addWidget(label("🍳  Món ăn phổ biến hôm nay", "pageTitle")); foodHead->addStretch(); auto *allFoods=new QPushButton("Xem tất cả  ›"); allFoods->setObjectName("soft"); foodHead->addWidget(allFoods); connect(allFoods,&QPushButton::clicked,this,[this]{showPage(3);}); foodV->addLayout(foodHead);
         auto*foods=new QHBoxLayout;
+        auto *foodPriceDisplays = new QVector<QPair<QLabel*,double>>();
         QSqlQuery foodQuery(DatabaseManager::database());
         if(DatabaseManager::isOpen() && foodQuery.exec("SELECT TOP 5 TenMon, DonGia FROM dbo.MonAn WHERE TrangThai=N'Đang bán' ORDER BY TenMon")) {
             int count=0;
-            while(foodQuery.next()) { auto*fc=new QFrame;fc->setStyleSheet("QFrame{background:#F7FAF5;border:1px solid #E7EEE4;border-radius:13px;}");auto*fl=new QVBoxLayout(fc);auto*emoji=label("♨");emoji->setAlignment(Qt::AlignCenter);emoji->setStyleSheet("font-size:25px;background:#EAF3E7;border-radius:10px;padding:6px;");fl->addWidget(emoji);fl->addWidget(label(foodQuery.value(0).toString()));auto*price=label(QLocale(QLocale::Vietnamese).toString(foodQuery.value(1).toDouble(),'f',0)+"đ");price->setStyleSheet("color:#000000;font-weight:700;");fl->addWidget(price);foods->addWidget(fc);++count;}
+            while(foodQuery.next()) { auto*fc=new QFrame;fc->setStyleSheet("QFrame{background:#F7FAF5;border:1px solid #E7EEE4;border-radius:13px;}");auto*fl=new QVBoxLayout(fc);auto*emoji=label("🍳");emoji->setAlignment(Qt::AlignCenter);emoji->setStyleSheet("font-size:25px;background:#EAF3E7;border-radius:10px;padding:6px;");fl->addWidget(emoji);fl->addWidget(label(foodQuery.value(0).toString()));double priceVnd=foodQuery.value(1).toDouble();auto*price=label(QLocale(QLocale::Vietnamese).toString(priceVnd,'f',0)+" VND");price->setStyleSheet("color:#000000;font-weight:700;");fl->addWidget(price);foodPriceDisplays->push_back(qMakePair(price,priceVnd));foods->addWidget(fc);++count;}
             if(count==0) foods->addWidget(label("Chưa có món đang bán. Hãy thêm món ăn trong mục Món ăn.","muted"));
         } else foods->addWidget(label("Chưa có dữ liệu món ăn hoặc chưa kết nối SQL Server.","muted"));
-        foodV->addLayout(foods); leftCol->addWidget(foodPanel,1); content->addWidget(left,7);
+        foodV->addLayout(foods); leftCol->addWidget(foodPanel,1); content->addWidget(left,6);
+        auto refreshFoodCurrency = [foodPriceDisplays,dashboardCurrency,dashboardRate]() {
+            const QString currency = dashboardCurrency->currentText();
+            const double rate = qMax(0.0001,dashboardRate->value());
+            const QLocale locale = currency == "VND" ? QLocale(QLocale::Vietnamese) : QLocale(QLocale::English, QLocale::UnitedStates);
+            for (const auto &item : *foodPriceDisplays)
+                item.first->setText(locale.toString(item.second/rate,'f',currency == "VND" ? 0 : 2)+" "+currency);
+        };
+        connect(dashboardCurrency,&QComboBox::currentTextChanged,this,[refreshFoodCurrency](const QString&){refreshFoodCurrency();});
+        connect(dashboardRate,QOverload<double>::of(&QDoubleSpinBox::valueChanged),this,[refreshFoodCurrency](double){refreshFoodCurrency();});
 
         auto *rightCol=new QWidget; auto *rightV=new QVBoxLayout(rightCol); rightV->setContentsMargins(0,0,0,0); rightV->setSpacing(12);
-        auto *quick=panel(); shadow(quick); auto*qv=new QVBoxLayout(quick); qv->addWidget(label("▦  Đặt bàn nhanh", "pageTitle"));
+        auto *quick=panel(); shadow(quick); quick->setMinimumWidth(0); quick->setMinimumHeight(0); auto*qv=new QVBoxLayout(quick); qv->setContentsMargins(12,12,12,12); qv->setSpacing(7); qv->addWidget(label("▦  Đặt bàn nhanh", "pageTitle"));
         auto*dt=new QDateEdit(QDate::currentDate()); dt->setCalendarPopup(true); auto*tm=new QTimeEdit(QTime(19,0));
-        auto*dateTime=new QHBoxLayout; dateTime->addWidget(dt); dateTime->addWidget(tm); qv->addLayout(dateTime);
+        dt->setMinimumHeight(34); tm->setMinimumHeight(34); dt->setMinimumWidth(0); tm->setMinimumWidth(0);
+        auto*dateTime=new QHBoxLayout; dateTime->setSpacing(8); dateTime->addWidget(dt,1); dateTime->addWidget(tm,1); qv->addLayout(dateTime);
         auto*people=new QComboBox; people->addItems({"2 người","3 người","4 người","5 người","6 người","8 người"});
         auto*area=new QComboBox; area->addItems({"Tất cả khu vực","Tầng 1","Tầng 2","Phòng VIP","Ngoài trời"});
-        auto*choices=new QHBoxLayout; choices->addWidget(people); choices->addWidget(area); qv->addLayout(choices);
-        auto*note=new QLineEdit; note->setPlaceholderText("Ghi chú (nếu có)"); qv->addWidget(note);
-        auto*book=new QPushButton("⊕   Đặt bàn"); book->setObjectName("primary"); qv->addWidget(book);
+        people->setMinimumHeight(34); area->setMinimumHeight(34);
+        auto*choices=new QHBoxLayout; choices->setSpacing(8); choices->addWidget(people,1); choices->addWidget(area,1); qv->addLayout(choices);
+        auto*note=new QLineEdit; note->setMinimumHeight(34); note->setPlaceholderText("Ghi chú (nếu có)"); qv->addWidget(note);
+        auto*book=new QPushButton("📅   Đặt bàn"); book->setObjectName("primary"); book->setMinimumHeight(36); qv->addWidget(book);
         connect(book,&QPushButton::clicked,this,[this,dt,tm,people,area,note]{showPage(1);QMessageBox::information(this,"Đặt bàn nhanh","Đã mở trang Quản lý đặt bàn. Vui lòng nhập thông tin khách và lưu tại trang đó.");});
         rightV->addWidget(quick);
 
-        auto *customers=panel(); auto*cv=new QVBoxLayout(customers); auto*ch=new QHBoxLayout; ch->addWidget(label("♧  Khách hàng gần đây", "pageTitle")); ch->addStretch(); auto *allCustomers=new QPushButton("Xem tất cả  ›"); allCustomers->setObjectName("soft"); ch->addWidget(allCustomers); connect(allCustomers,&QPushButton::clicked,this,[this]{showPage(4);}); cv->addLayout(ch);
+        auto *customers=panel(); auto*cv=new QVBoxLayout(customers); auto*ch=new QHBoxLayout; ch->addWidget(label("😊  Khách hàng gần đây", "pageTitle")); ch->addStretch(); auto *allCustomers=new QPushButton("Xem tất cả  ›"); allCustomers->setObjectName("soft"); ch->addWidget(allCustomers); connect(allCustomers,&QPushButton::clicked,this,[this]{showPage(4);}); cv->addLayout(ch);
         QSqlQuery recentCustomers(DatabaseManager::database());
         if(DatabaseManager::isOpen() && recentCustomers.exec("SELECT TOP 3 kh.HoTen, kh.SoDienThoai, db.MaBan, db.SoNguoi, db.GioDat FROM dbo.DatBan db JOIN dbo.KhachHang kh ON kh.MaKH=db.MaKH ORDER BY db.NgayDat DESC, db.GioDat DESC")) {
             int idx=0;
@@ -661,10 +725,51 @@ private:
         } else cv->addWidget(label("Chưa có dữ liệu khách hàng hoặc chưa kết nối SQL Server.","muted"));
         rightV->addWidget(customers);
 
-        auto *invoices=panel(); auto*iv=new QVBoxLayout(invoices); auto*ih=new QHBoxLayout; ih->addWidget(label("▣  Hóa đơn gần đây", "pageTitle")); ih->addStretch(); auto *allInvoices=new QPushButton("Xem tất cả  ›"); allInvoices->setObjectName("soft"); ih->addWidget(allInvoices); connect(allInvoices,&QPushButton::clicked,this,[this]{showPage(6);}); iv->addLayout(ih);
-        const QStringList invoiceRows={"HD001    Bàn B03 · 4 món    520.000đ    Đã thanh toán","HD002    Bàn B06 · 3 món    385.000đ    Đang xử lý","HD003    Bàn B08 · 5 món    750.000đ    Chưa thanh toán"};
-        for(int i=0;i<invoiceRows.size();++i){auto*il=label(invoiceRows[i]);il->setStyleSheet(QString("padding:6px;color:%1;").arg(i==0?"#477B55":(i==1?"#B77B35":"#B75D5D")));iv->addWidget(il);}
-        rightV->addWidget(invoices); rightV->addStretch(); content->addWidget(rightCol,4); v->addLayout(content,1); return w;
+        auto *invoices=panel(); auto*iv=new QVBoxLayout(invoices); auto*ih=new QHBoxLayout; ih->addWidget(label("🧾  Hóa đơn gần đây", "pageTitle")); ih->addStretch(); auto *allInvoices=new QPushButton("Xem tất cả  ›"); allInvoices->setObjectName("soft"); ih->addWidget(allInvoices); connect(allInvoices,&QPushButton::clicked,this,[this]{showPage(6);}); iv->addLayout(ih);
+        auto *invoiceList = new QVBoxLayout; iv->addLayout(invoiceList);
+        struct InvoiceDisplay { QLabel *label; double amount; QString status; };
+        auto *invoiceDisplays = new QVector<InvoiceDisplay>();
+        if (DatabaseManager::isOpen()) {
+            QSqlQuery recentInvoices(DatabaseManager::database());
+            if (recentInvoices.exec("SELECT TOP 3 h.MaHD, COALESCE(b.TenBan,N'Chưa gán bàn') AS TenBan, COUNT(DISTINCT ct.MaMon) AS SoMon, h.ThanhTien, h.TrangThai FROM dbo.HoaDon h LEFT JOIN dbo.DatBan db ON db.MaDatBan=h.MaDatBan LEFT JOIN dbo.Ban b ON b.MaBan=db.MaBan LEFT JOIN dbo.ChiTietHoaDon ct ON ct.MaHD=h.MaHD GROUP BY h.MaHD,b.TenBan,h.ThanhTien,h.TrangThai,h.NgayLap ORDER BY h.NgayLap DESC")) {
+                while (recentInvoices.next()) {
+                    const double amount = recentInvoices.value(3).toDouble();
+                    const QString status = recentInvoices.value(4).toString();
+                    auto *il = label(QString("%1   %2 · %3 món   %4   %5").arg(recentInvoices.value(0).toString(), recentInvoices.value(1).toString(), recentInvoices.value(2).toString(), QLocale(QLocale::Vietnamese).toString(amount,'f',0)+" VND", status));
+                    il->setWordWrap(true); il->setMinimumHeight(38); il->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Preferred); il->setToolTip("Dữ liệu hóa đơn lấy trực tiếp từ SQL Server");
+                    const QString color = status == "Đã thanh toán" ? "#477B55" : (status == "Đang xử lý" ? "#B77B35" : "#B75D5D");
+                    il->setStyleSheet(QString("padding:7px;color:%1;background:#FFFFFF;border-bottom:1px solid #E7EEE4;").arg(color));
+                    invoiceList->addWidget(il); invoiceDisplays->push_back({il,amount,status});
+                }
+            }
+        }
+        if (invoiceDisplays->isEmpty()) { auto *empty = label("Chưa có hóa đơn trong cơ sở dữ liệu.","muted"); empty->setWordWrap(true); invoiceList->addWidget(empty); }
+        auto refreshInvoiceCurrency = [invoiceDisplays,dashboardCurrency,dashboardRate]() {
+            const QString currency = dashboardCurrency->currentText();
+            const double rate = qMax(0.0001,dashboardRate->value());
+            for (const auto &item : *invoiceDisplays) {
+                const QLocale locale = currency == "VND" ? QLocale(QLocale::Vietnamese) : QLocale(QLocale::English, QLocale::UnitedStates);
+                const QString money = locale.toString(item.amount/rate,'f',currency == "VND" ? 0 : 2)+" "+currency;
+                // Replace only the displayed amount; all invoice details/status come from SQL Server.
+                QString text = item.label->text();
+                const int first = text.indexOf("   ");
+                const int last = text.lastIndexOf("   ");
+                if (first >= 0 && last > first) {
+                    QStringList pieces = text.split("   ");
+                    if (pieces.size() >= 4) { pieces[2] = money; item.label->setText(pieces.join("   ")); }
+                }
+            }
+        };
+        connect(dashboardCurrency,&QComboBox::currentTextChanged,this,[refreshInvoiceCurrency](const QString&){refreshInvoiceCurrency();});
+        connect(dashboardRate,QOverload<double>::of(&QDoubleSpinBox::valueChanged),this,[refreshInvoiceCurrency](double){refreshInvoiceCurrency();});
+        // Keep quick booking controls readable at normal window sizes; labels never get clipped.
+        quick->setMinimumWidth(390); quick->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Minimum);
+        dt->setMinimumHeight(42); tm->setMinimumHeight(42); people->setMinimumHeight(42); area->setMinimumHeight(42); note->setMinimumHeight(42); book->setMinimumHeight(44);
+        dt->setMinimumWidth(125); tm->setMinimumWidth(105); people->setMinimumWidth(115); area->setMinimumWidth(145);
+        dt->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed); tm->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed); people->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed); area->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed); note->setSizePolicy(QSizePolicy::Expanding,QSizePolicy::Fixed);
+        dt->setDisplayFormat("dd/MM/yyyy"); tm->setDisplayFormat("HH:mm");
+        qv->setSpacing(11); dateTime->setSpacing(10); choices->setSpacing(10);
+        rightV->addWidget(invoices); rightV->addStretch(); content->addWidget(rightCol,5); v->addLayout(content,1); return w;
     }
     QWidget *makeBookingPage(){
         auto*w=new QWidget; auto*v=new QVBoxLayout(w);
@@ -855,7 +960,7 @@ private:
         auto*f=panel();auto*l=new QVBoxLayout(f);auto*filters=new QHBoxLayout;auto*search=new QLineEdit;search->setPlaceholderText("Tìm mã bàn hoặc tên bàn...");auto*area=new QComboBox;area->addItem("Tất cả khu vực","");auto*refresh=new QPushButton("↻ Làm mới");refresh->setObjectName("soft");auto*add=new QPushButton("＋ Thêm bàn");add->setObjectName("primary");filters->addWidget(search,1);filters->addWidget(area);filters->addWidget(refresh);filters->addWidget(add);l->addLayout(filters);
         auto*t=new QTableWidget(0,5);t->setHorizontalHeaderLabels({"Mã bàn","Tên bàn","Khu vực","Số chỗ","Trạng thái"});t->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);t->setSelectionBehavior(QAbstractItemView::SelectRows);t->setEditTriggers(QAbstractItemView::NoEditTriggers);t->verticalHeader()->setVisible(false);l->addWidget(t,1);
         auto loadAreas=[this,area](){QString old=area->currentData().toString();area->clear();area->addItem("Tất cả khu vực","");QSqlQuery q(DatabaseManager::database());if(q.exec("SELECT MaKhuVuc,TenKhuVuc FROM dbo.KhuVuc ORDER BY TenKhuVuc"))while(q.next())area->addItem(q.value(1).toString(),q.value(0).toString());int i=area->findData(old);if(i>=0)area->setCurrentIndex(i);};
-        auto load=[this,t,area](){t->setRowCount(0);if(!DatabaseManager::connect()){QMessageBox::warning(this,"SQL Server","Không kết nối được cơ sở dữ liệu.");return;}QSqlQuery q(DatabaseManager::database());QString sql="SELECT b.MaBan,b.TenBan,kv.TenKhuVuc,b.SoCho,b.TrangThai FROM dbo.Ban b JOIN dbo.KhuVuc kv ON kv.MaKhuVuc=b.MaKhuVuc";if(!area->currentData().toString().isEmpty())sql+=" WHERE b.MaKhuVuc=?";sql+=" ORDER BY kv.TenKhuVuc,b.MaBan";if(!q.prepare(sql)){QMessageBox::warning(this,"Lỗi SQL",q.lastError().text());return;}if(!area->currentData().toString().isEmpty())q.addBindValue(area->currentData());if(!q.exec()){QMessageBox::warning(this,"Không tải được bàn",q.lastError().text());return;}while(q.next()){int r=t->rowCount();t->insertRow(r);QString status=q.value(4).toString();QColor tint="#FFFFFF";if(status=="Trống")tint=QColor("#F0F8F0");else if(status=="Đã đặt")tint=QColor("#FFF4D6");else if(status=="Đang sử dụng")tint=QColor("#FBE5E5");else if(status=="Bảo trì")tint=QColor("#E9EAEC");for(int c=0;c<5;++c){auto *cell=new QTableWidgetItem(q.value(c).toString());cell->setBackground(tint);t->setItem(r,c,cell);}}};
+        auto load=[this,t,area](){t->setRowCount(0);if(!DatabaseManager::connect()){QMessageBox::warning(this,"SQL Server","Không kết nối được cơ sở dữ liệu.");return;}QSqlQuery q(DatabaseManager::database());QString sql="SELECT b.MaBan,b.TenBan,kv.TenKhuVuc,b.SoCho,b.TrangThai FROM dbo.Ban b JOIN dbo.KhuVuc kv ON kv.MaKhuVuc=b.MaKhuVuc";if(!area->currentData().toString().isEmpty())sql+=" WHERE b.MaKhuVuc=?";sql+=" ORDER BY kv.TenKhuVuc,b.MaBan";if(!q.prepare(sql)){QMessageBox::warning(this,"Lỗi SQL",q.lastError().text());return;}if(!area->currentData().toString().isEmpty())q.addBindValue(area->currentData());if(!q.exec()){QMessageBox::warning(this,"Không tải được bàn",q.lastError().text());return;}while(q.next()){int r=t->rowCount();t->insertRow(r);QString status=q.value(4).toString();QColor tint=(r%2==0)?QColor("#FFFFFF"):QColor("#EDF6ED");if(status=="Đã đặt")tint=QColor("#FFF0C2");else if(status=="Đang sử dụng")tint=QColor("#F8DADA");else if(status=="Bảo trì")tint=QColor("#E3E5E8");for(int c=0;c<5;++c){auto *cell=new QTableWidgetItem(q.value(c).toString());cell->setBackground(tint);t->setItem(r,c,cell);}}};
         connect(refresh,&QPushButton::clicked,w,[loadAreas,load](){loadAreas();load();});connect(area,QOverload<int>::of(&QComboBox::currentIndexChanged),w,[load](int){load();});connect(search,&QLineEdit::textChanged,w,[t](const QString&s){for(int r=0;r<t->rowCount();++r){bool ok=false;for(int c=0;c<2;++c)if(t->item(r,c)&&t->item(r,c)->text().contains(s,Qt::CaseInsensitive))ok=true;t->setRowHidden(r,!ok);}});
         connect(add,&QPushButton::clicked,w,[this,loadAreas,load](){if(!DatabaseManager::connect()){QMessageBox::warning(this,"SQL Server","Không kết nối được cơ sở dữ liệu.");return;}QDialog d(this);d.setWindowTitle("Thêm bàn ăn");QFormLayout form(&d);QLineEdit ma,ten;QSpinBox cho;cho.setRange(1,30);cho.setValue(4);QComboBox kv;QSqlQuery q(DatabaseManager::database());if(!q.exec("SELECT MaKhuVuc,TenKhuVuc FROM dbo.KhuVuc ORDER BY TenKhuVuc")){QMessageBox::warning(this,"Lỗi SQL",q.lastError().text());return;}while(q.next())kv.addItem(q.value(1).toString(),q.value(0).toString());if(kv.count()==0){QMessageBox::warning(this,"Thiếu khu vực","Hãy tạo khu vực trong database trước.");return;}QComboBox st;st.addItems({"Trống","Bảo trì"});form.addRow("Mã bàn",&ma);form.addRow("Tên bàn",&ten);form.addRow("Số chỗ",&cho);form.addRow("Khu vực",&kv);form.addRow("Trạng thái",&st);QPushButton save("Lưu"),cancel("Hủy");QHBoxLayout buttons;buttons.addWidget(&save);buttons.addWidget(&cancel);form.addRow(&buttons);QObject::connect(&cancel,&QPushButton::clicked,&d,&QDialog::reject);QObject::connect(&save,&QPushButton::clicked,&d,&QDialog::accept);if(d.exec()!=QDialog::Accepted)return;QString id=ma.text().trimmed(),nm=ten.text().trimmed();if(id.isEmpty()||nm.isEmpty()){QMessageBox::warning(this,"Thiếu thông tin","Nhập mã và tên bàn.");return;}QSqlQuery ins(DatabaseManager::database());ins.prepare("INSERT dbo.Ban(MaBan,TenBan,SoCho,TrangThai,MaKhuVuc) VALUES(?,?,?,?,?)");ins.addBindValue(id);ins.addBindValue(nm);ins.addBindValue(cho.value());ins.addBindValue(st.currentText());ins.addBindValue(kv.currentData());if(!ins.exec()){QMessageBox::critical(this,"Không thêm được bàn",ins.lastError().text());return;}loadAreas();load();QMessageBox::information(this,"Thành công","Đã thêm bàn vào SQL Server.");});
         v->addWidget(f,1);loadAreas();load();return w;
@@ -1330,7 +1435,7 @@ private:
         foodActions->addWidget(addFood); foodActions->addWidget(editFood); foodActions->addWidget(deleteFood); foodActions->addStretch();
         if (name == "Món ăn") l->addLayout(foodActions);
         else { addFood->hide(); editFood->hide(); deleteFood->hide(); }
-        auto *t=new QTableWidget(0,4); t->setHorizontalHeaderLabels({"Mã","Tên / Thông tin","Giá trị / Liên hệ","Trạng thái"}); t->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); t->setSelectionBehavior(QAbstractItemView::SelectRows); t->setSelectionMode(QAbstractItemView::SingleSelection); t->setEditTriggers(QAbstractItemView::NoEditTriggers); t->verticalHeader()->setVisible(false); l->addWidget(t,1);
+        auto *t=new QTableWidget(0, name == "Món ăn" ? 5 : 4); t->setHorizontalHeaderLabels(name == "Món ăn" ? QStringList{"Ảnh món","Mã món","Tên món","Đơn giá","Trạng thái"} : QStringList{"Mã","Tên / Thông tin","Giá trị / Liên hệ","Trạng thái"}); t->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch); t->setSelectionBehavior(QAbstractItemView::SelectRows); t->setSelectionMode(QAbstractItemView::SingleSelection); t->setEditTriggers(QAbstractItemView::NoEditTriggers); t->verticalHeader()->setVisible(false); l->addWidget(t,1);
         auto *detail=new QLabel("Chưa chọn bản ghi."); detail->setObjectName("muted"); detail->setWordWrap(true); l->addWidget(detail);
         // Luôn hiển thị bảng và tải dữ liệu ngay khi trang được tạo/mở.
         // Nếu database chưa có bản ghi, hiển thị thông báo rõ ràng thay vì bảng trống.
@@ -1352,7 +1457,7 @@ private:
                 return;
             }
             QString sql;
-            if(name=="Món ăn") sql="SELECT TOP 500 MaMon,TenMon,CONVERT(nvarchar(50),CAST(DonGia AS decimal(18,0))),TrangThai FROM dbo.MonAn ORDER BY TenMon";
+            if(name=="Món ăn") sql="SELECT TOP 500 HinhAnh,MaMon,TenMon,CONVERT(nvarchar(50),CAST(DonGia AS decimal(18,0))),TrangThai FROM dbo.MonAn ORDER BY TenMon";
             else if(name=="Khách hàng") sql="SELECT TOP 500 MaKH,HoTen,SoDienThoai,ISNULL(Email,N'') FROM dbo.KhachHang ORDER BY NgayTao DESC";
             else if(name=="Hóa đơn") sql="SELECT TOP 500 MaHD,MaDatBan,CONVERT(nvarchar(50),CAST(ThanhTien AS decimal(18,0))),TrangThai FROM dbo.HoaDon ORDER BY NgayLap DESC";
             else if(name=="Thống kê") sql="SELECT N'Tổng lượt đặt',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Tất cả' FROM dbo.DatBan UNION ALL SELECT N'Đang đặt',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Đã đặt' FROM dbo.DatBan WHERE TrangThai=N'Đã đặt' UNION ALL SELECT N'Đã nhận bàn',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Đã nhận bàn' FROM dbo.DatBan WHERE TrangThai=N'Đã nhận bàn' UNION ALL SELECT N'Đã hủy',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Đã hủy' FROM dbo.DatBan WHERE TrangThai=N'Đã hủy' UNION ALL SELECT N'Không đến',CONVERT(nvarchar(50),COUNT(*)),N'Lượt',N'Không đến' FROM dbo.DatBan WHERE TrangThai=N'Không đến' UNION ALL SELECT N'Doanh thu đã thanh toán',CONVERT(nvarchar(50),CAST(ISNULL(SUM(ThanhTien),0) AS decimal(18,0))),N'VNĐ',N'Đã thanh toán' FROM dbo.HoaDon WHERE TrangThai=N'Đã thanh toán'";
@@ -1367,10 +1472,25 @@ private:
             }
             while(q.next()){
                 int r=t->rowCount(); t->insertRow(r);
-                for(int c=0;c<4;++c) {
+                for(int c=0;c<t->columnCount();++c) {
                     QString cellText = q.value(c).toString();
+                    if (name == "Món ăn" && c == 0) {
+                        auto *imageItem = new QTableWidgetItem();
+                        const QString imagePath = q.value(0).toString();
+                        QPixmap pix;
+                        if (!imagePath.isEmpty() && pix.load(imagePath)) {
+                            imageItem->setIcon(QIcon(pix.scaled(64, 48, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+                            imageItem->setText(" ");
+                            imageItem->setToolTip(imagePath);
+                        } else {
+                            imageItem->setText("🍽 Chưa có ảnh");
+                        }
+                        t->setItem(r,c,imageItem);
+                        t->setRowHeight(r, 56);
+                        continue;
+                    }
                     const QString rowName = q.value(0).toString();
-                    if ((name == "Món ăn" && c == 2) || (name == "Hóa đơn" && c == 2)) {
+                    if ((name == "Món ăn" && c == 3) || (name == "Hóa đơn" && c == 2)) {
                         bool ok=false; double amount=cellText.toDouble(&ok);
                         if(ok) cellText = QLocale(QLocale::Vietnamese).toString(amount, 'f', 0) + " VND";
                     }
@@ -1399,8 +1519,8 @@ private:
             }
         };
         if (name == "Món ăn") {
-            auto openFoodDialog = [this, w](const QString &title, const QString &code, const QString &foodName, const QString &category, double price, const QString &unit, const QString &description, const QString &status, bool codeReadOnly, QString *outCode, QString *outName, QString *outCategory, double *outPrice, QString *outUnit, QString *outDescription, QString *outStatus) -> bool {
-                QDialog dlg(w); dlg.setWindowTitle(title); dlg.resize(460, 420);
+            auto openFoodDialog = [this, w](const QString &title, const QString &code, const QString &foodName, const QString &category, double price, const QString &unit, const QString &description, const QString &status, const QString &existingImage, bool codeReadOnly, QString *outCode, QString *outName, QString *outCategory, double *outPrice, QString *outUnit, QString *outDescription, QString *outStatus, QString *outImage) -> bool {
+                QDialog dlg(w); dlg.setWindowTitle(title); dlg.resize(500, 500);
                 auto *form = new QFormLayout(&dlg);
                 auto *codeEdit = new QLineEdit(code); codeEdit->setPlaceholderText("Ví dụ: M010"); codeEdit->setReadOnly(codeReadOnly);
                 auto *nameEdit = new QLineEdit(foodName); nameEdit->setPlaceholderText("Tên món ăn");
@@ -1409,34 +1529,50 @@ private:
                 auto *unitEdit = new QLineEdit(unit.isEmpty() ? "Phần" : unit);
                 auto *descEdit = new QTextEdit; descEdit->setPlainText(description); descEdit->setMaximumHeight(75);
                 auto *statusEdit = new QComboBox; statusEdit->addItems({"Đang bán", "Hết món", "Ngừng bán"}); int ix=statusEdit->findText(status); statusEdit->setCurrentIndex(ix >= 0 ? ix : 0);
-                form->addRow("Mã món *", codeEdit); form->addRow("Tên món *", nameEdit); form->addRow("Loại món", categoryEdit); form->addRow("Đơn giá *", priceEdit); form->addRow("Đơn vị tính", unitEdit); form->addRow("Mô tả", descEdit); form->addRow("Trạng thái", statusEdit);
+                auto *imagePathEdit = new QLineEdit(existingImage); imagePathEdit->setReadOnly(true); imagePathEdit->setPlaceholderText("Chưa chọn ảnh món ăn");
+                auto *browseImage = new QPushButton("🖼️  📂 Chọn ảnh từ máy tính"); browseImage->setObjectName("primary"); browseImage->setMinimumHeight(42); browseImage->setToolTip("Bấm để mở thư mục trên máy và chọn ảnh món ăn");
+                auto *imagePreview = new QLabel("Chưa có ảnh xem trước"); imagePreview->setAlignment(Qt::AlignCenter); imagePreview->setMinimumHeight(100); imagePreview->setMaximumHeight(130); imagePreview->setStyleSheet("background:#F3F8F1;border:1px dashed #B8D0B8;border-radius:10px;color:#4A604D;padding:8px;");
+                auto updatePreview = [imagePathEdit,imagePreview]() { QPixmap pix; if (!imagePathEdit->text().isEmpty() && pix.load(imagePathEdit->text())) imagePreview->setPixmap(pix.scaled(180,110,Qt::KeepAspectRatio,Qt::SmoothTransformation)); else { imagePreview->setPixmap(QPixmap()); imagePreview->setText("Chưa có ảnh xem trước"); } };
+                updatePreview();
+                QObject::connect(browseImage, &QPushButton::clicked, &dlg, [&dlg,imagePathEdit,imagePreview,updatePreview]() {
+                    QString startDir = QDir::homePath(); if (!imagePathEdit->text().trimmed().isEmpty() && QFileInfo::exists(imagePathEdit->text().trimmed())) startDir = QFileInfo(imagePathEdit->text().trimmed()).absolutePath(); else { QString foodDir = QDir(QApplication::applicationDirPath()).filePath("images/foods"); if (QDir(foodDir).exists()) startDir = foodDir; }
+                    QString file = QFileDialog::getOpenFileName(&dlg, "Chọn ảnh món ăn từ máy tính", startDir, "Tất cả ảnh (*.png *.jpg *.jpeg *.bmp *.webp);;PNG (*.png);;JPEG (*.jpg *.jpeg);;WEBP (*.webp);;Tất cả tệp (*.*)");
+                    if (file.isEmpty()) return;
+                    QDir imageDir(QDir(QApplication::applicationDirPath()).filePath("images/foods"));
+                    if (!imageDir.exists() && !QDir().mkpath(imageDir.absolutePath())) { QMessageBox::warning(&dlg,"Không tạo được thư mục ảnh","Không thể tạo thư mục images/foods cạnh ứng dụng."); return; }
+                    QFileInfo info(file);
+                    QString destination = imageDir.filePath(info.completeBaseName() + "_" + QString::number(QDateTime::currentMSecsSinceEpoch()) + "." + info.suffix().toLower());
+                    if (!QFile::copy(file,destination)) { QMessageBox::warning(&dlg,"Không sao chép được ảnh","Hãy kiểm tra quyền ghi vào thư mục ứng dụng hoặc chọn ảnh khác."); return; }
+                    imagePathEdit->setText(QDir::toNativeSeparators(destination)); updatePreview();
+                });
+                form->addRow("Mã món *", codeEdit); form->addRow("Tên món *", nameEdit); form->addRow("Loại món", categoryEdit); form->addRow("Đơn giá *", priceEdit); form->addRow("Đơn vị tính", unitEdit); form->addRow("Mô tả", descEdit); form->addRow("Trạng thái", statusEdit); form->addRow("📸 Ảnh món ăn (bấm để chọn)", browseImage); form->addRow("Đường dẫn ảnh", imagePathEdit); form->addRow("👀 Xem trước", imagePreview);
                 auto *buttons = new QHBoxLayout; auto *save = new QPushButton("Lưu"); save->setObjectName("primary"); auto *cancel = new QPushButton("Hủy"); cancel->setObjectName("soft"); buttons->addStretch(); buttons->addWidget(save); buttons->addWidget(cancel); form->addRow(buttons);
                 QObject::connect(save, &QPushButton::clicked, &dlg, [&dlg,codeEdit,nameEdit](){ if(codeEdit->text().trimmed().isEmpty() || nameEdit->text().trimmed().isEmpty()){ QMessageBox::warning(&dlg,"Thiếu thông tin","Mã món và tên món không được để trống."); return; } dlg.accept(); });
                 QObject::connect(cancel, &QPushButton::clicked, &dlg, &QDialog::reject);
                 if (dlg.exec() != QDialog::Accepted) return false;
-                *outCode=codeEdit->text().trimmed(); *outName=nameEdit->text().trimmed(); *outCategory=categoryEdit->text().trimmed(); *outPrice=priceEdit->value(); *outUnit=unitEdit->text().trimmed(); *outDescription=descEdit->toPlainText().trimmed(); *outStatus=statusEdit->currentText(); return true;
+                *outCode=codeEdit->text().trimmed(); *outName=nameEdit->text().trimmed(); *outCategory=categoryEdit->text().trimmed(); *outPrice=priceEdit->value(); *outUnit=unitEdit->text().trimmed(); *outDescription=descEdit->toPlainText().trimmed(); *outStatus=statusEdit->currentText(); *outImage=imagePathEdit->text().trimmed(); return true;
             };
             connect(addFood, &QPushButton::clicked, w, [this,w,load,openFoodDialog]() mutable {
-                QString code,nm,cat,unit,desc,status; double price=0;
-                if(!openFoodDialog("Thêm món ăn", "", "", "", 10000, "Phần", "", "Đang bán", false, &code,&nm,&cat,&price,&unit,&desc,&status)) return;
-                QSqlQuery q(DatabaseManager::database()); q.prepare("INSERT INTO dbo.MonAn (MaMon,TenMon,LoaiMon,DonGia,DonViTinh,MoTa,TrangThai) VALUES (?,?,?,?,?,?,?)");
-                q.addBindValue(code); q.addBindValue(nm); q.addBindValue(cat.isEmpty()?QVariant():QVariant(cat)); q.addBindValue(price); q.addBindValue(unit.isEmpty()?QVariant():QVariant(unit)); q.addBindValue(desc.isEmpty()?QVariant():QVariant(desc)); q.addBindValue(status);
+                QString code,nm,cat,unit,desc,status,image; double price=0;
+                if(!openFoodDialog("Thêm món ăn", "", "", "", 10000, "Phần", "", "Đang bán", "", false, &code,&nm,&cat,&price,&unit,&desc,&status,&image)) return;
+                QSqlQuery q(DatabaseManager::database()); q.prepare("INSERT INTO dbo.MonAn (MaMon,TenMon,LoaiMon,DonGia,DonViTinh,MoTa,TrangThai,HinhAnh) VALUES (?,?,?,?,?,?,?,?)");
+                q.addBindValue(code); q.addBindValue(nm); q.addBindValue(cat.isEmpty()?QVariant():QVariant(cat)); q.addBindValue(price); q.addBindValue(unit.isEmpty()?QVariant():QVariant(unit)); q.addBindValue(desc.isEmpty()?QVariant():QVariant(desc)); q.addBindValue(status); q.addBindValue(image.isEmpty()?QVariant():QVariant(image));
                 if(!q.exec()){ QMessageBox::critical(w,"Không thêm được món",q.lastError().text()); return; }
                 load(); QMessageBox::information(w,"Thành công","Đã thêm món ăn vào SQL Server.");
             });
             connect(editFood, &QPushButton::clicked, w, [this,w,t,load,openFoodDialog]() mutable {
                 int r=t->currentRow(); if(r<0 || !t->item(r,0)){ QMessageBox::information(w,"Chưa chọn món","Hãy chọn món ăn cần sửa."); return; }
-                QString code=t->item(r,0)->text(); QSqlQuery read(DatabaseManager::database()); read.prepare("SELECT TenMon,ISNULL(LoaiMon,N''),DonGia,ISNULL(DonViTinh,N''),ISNULL(MoTa,N''),TrangThai FROM dbo.MonAn WHERE MaMon=?"); read.addBindValue(code);
+                QString code=t->item(r,1)->text(); QSqlQuery read(DatabaseManager::database()); read.prepare("SELECT TenMon,ISNULL(LoaiMon,N''),DonGia,ISNULL(DonViTinh,N''),ISNULL(MoTa,N''),TrangThai,ISNULL(HinhAnh,N'') FROM dbo.MonAn WHERE MaMon=?"); read.addBindValue(code);
                 if(!read.exec() || !read.next()){ QMessageBox::critical(w,"Lỗi","Không đọc được món ăn đã chọn: "+read.lastError().text()); return; }
-                QString nm0=read.value(0).toString(),cat0=read.value(1).toString(),unit0=read.value(3).toString(),desc0=read.value(4).toString(),status0=read.value(5).toString(); double price0=read.value(2).toDouble();
-                QString newCode,nm,cat,unit,desc,status; double price=0;
-                if(!openFoodDialog("Sửa món ăn",code,nm0,cat0,price0,unit0,desc0,status0,true,&newCode,&nm,&cat,&price,&unit,&desc,&status)) return;
-                QSqlQuery q(DatabaseManager::database()); q.prepare("UPDATE dbo.MonAn SET TenMon=?,LoaiMon=?,DonGia=?,DonViTinh=?,MoTa=?,TrangThai=? WHERE MaMon=?"); q.addBindValue(nm); q.addBindValue(cat.isEmpty()?QVariant():QVariant(cat)); q.addBindValue(price); q.addBindValue(unit.isEmpty()?QVariant():QVariant(unit)); q.addBindValue(desc.isEmpty()?QVariant():QVariant(desc)); q.addBindValue(status); q.addBindValue(code);
+                QString nm0=read.value(0).toString(),cat0=read.value(1).toString(),unit0=read.value(3).toString(),desc0=read.value(4).toString(),status0=read.value(5).toString(),image0=read.value(6).toString(); double price0=read.value(2).toDouble();
+                QString newCode,nm,cat,unit,desc,status,image; double price=0;
+                if(!openFoodDialog("Sửa món ăn",code,nm0,cat0,price0,unit0,desc0,status0,image0,true,&newCode,&nm,&cat,&price,&unit,&desc,&status,&image)) return;
+                QSqlQuery q(DatabaseManager::database()); q.prepare("UPDATE dbo.MonAn SET TenMon=?,LoaiMon=?,DonGia=?,DonViTinh=?,MoTa=?,TrangThai=?,HinhAnh=? WHERE MaMon=?"); q.addBindValue(nm); q.addBindValue(cat.isEmpty()?QVariant():QVariant(cat)); q.addBindValue(price); q.addBindValue(unit.isEmpty()?QVariant():QVariant(unit)); q.addBindValue(desc.isEmpty()?QVariant():QVariant(desc)); q.addBindValue(status); q.addBindValue(image.isEmpty()?QVariant():QVariant(image)); q.addBindValue(code);
                 if(!q.exec()){ QMessageBox::critical(w,"Không sửa được món",q.lastError().text()); return; } load(); QMessageBox::information(w,"Thành công","Đã cập nhật món ăn.");
             });
             connect(deleteFood, &QPushButton::clicked, w, [this,w,t,load](){
                 int r=t->currentRow(); if(r<0 || !t->item(r,0)){ QMessageBox::information(w,"Chưa chọn món","Hãy chọn món cần ngừng bán."); return; }
-                QString code=t->item(r,0)->text(), nm=t->item(r,1)->text();
+                QString code=t->item(r,1)->text(), nm=t->item(r,2)->text();
                 if(QMessageBox::question(w,"Ngừng bán món",QString("Ngừng bán món '%1'? Món sẽ được giữ lại để bảo toàn lịch sử hóa đơn.").arg(nm),QMessageBox::Yes|QMessageBox::No,QMessageBox::No)!=QMessageBox::Yes) return;
                 QSqlQuery q(DatabaseManager::database()); q.prepare("UPDATE dbo.MonAn SET TrangThai=N'Ngừng bán' WHERE MaMon=?"); q.addBindValue(code);
                 if(!q.exec()){ QMessageBox::critical(w,"Không cập nhật được",q.lastError().text()); return; } load(); QMessageBox::information(w,"Thành công","Món đã chuyển sang trạng thái Ngừng bán.");
@@ -1487,7 +1623,7 @@ int main(int argc,char *argv[])
     auto *v=new QVBoxLayout(root);
     v->setContentsMargins(42,32,42,30);
     v->setSpacing(13);
-    v->addWidget(label("♧  Nhà Hàng", "brand"),0,Qt::AlignHCenter);
+    v->addWidget(label("😊  Nhà Hàng", "brand"),0,Qt::AlignHCenter);
     v->addWidget(label("Chào mừng bạn quay lại", "pageTitle"),0,Qt::AlignHCenter);
     v->addWidget(label("Đăng nhập vào hệ thống quản lý nhà hàng", "muted"),0,Qt::AlignHCenter);
     v->addSpacing(8);
